@@ -1,9 +1,7 @@
 name: Shorts Otomasyon
 
 on:
-  schedule:
-    - cron: "0 */8 * * *"
-  workflow_dispatch:
+  workflow_dispatch:   # Sadece cron-job.org tetikler
 
 jobs:
   uret-ve-yukle:
