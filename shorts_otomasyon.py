@@ -76,6 +76,12 @@ PIXABAY_API_KEY = os.environ.get("PIXABAY_API_KEY") or "56752910-1e70a403809949c
 # Pexels ücretsiz anahtar (isteğe bağlı): https://www.pexels.com/api/
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY") or ""
 
+# --- Görsel kaynağı ---
+#   "yapayzeka" = Pollinations (ücretsiz+anahtarsız, her görsel BENZERSİZ, dikey üretir)
+#   "pixabay"   = stok fotoğraflar. AI başarısız olursa otomatik stok'a düşer.
+GORSEL_KAYNAGI = "yapayzeka"
+AI_MODEL = "flux"   # "flux" (kaliteli) veya "turbo" (hızlı)
+
 
 # --- 2) Klasör ve dosya yolları ---
 
@@ -202,7 +208,7 @@ Write a single Short and return ONLY valid JSON with these exact keys:
 - "title": a highly clickable, curiosity-driven title optimized for YouTube Shorts search, max 70 characters. Lead with the strongest hook or main keyword. No fake/false claims.
 - "description": a 2-3 sentence hooky summary that naturally includes searchable keywords, then a new line with 6-8 relevant hashtags (include #Shorts and #mystery).
 - "tags": an array of 15 lowercase strings that MIX broad high-traffic terms (e.g. "unsolved mystery", "creepy", "scary", "unexplained", "true stories", "documentary") with terms specific to THIS topic. No "#" symbol.
-- "image_queries": an array of 6-8 short, concrete English stock-photo search phrases that visually match the story's setting, objects, and mood (e.g. "foggy pine forest", "old abandoned ship", "snowy mountain pass at night", "vintage newspaper"). No people's names, no on-image text, no logos. Concrete, searchable visuals only.
+- "image_queries": an array of 6-8 RICH, DETAILED cinematic image descriptions (full scenes, NOT short keywords) that match the story's setting and eerie mood, written for an AI image generator. Each must describe subject + setting + mood + lighting (e.g. "a foggy abandoned house deep in a dark pine forest at night, faint moonlight, unsettling eerie atmosphere, cinematic wide shot", "an old rusted ghost ship drifting in thick fog on a still black sea, cold blue moonlight, ominous"). Make them vivid and specific. No real people's names, no on-image text, no logos.
 
 Important:
 - Base it on real, documented mysteries. Do NOT invent fake events and present them as fact. If a detail is uncertain, phrase it as "some believe" or "it is said".
@@ -502,69 +508,76 @@ def _openverse_ara(sorgu, kullanilmis):
     return None
 
 
+def _yapayzeka_gorsel_indir(sorgu, hedef):
+    """Pollinations (ücretsiz+anahtarsız) ile konuya özel, DİKEY, benzersiz görsel üretir."""
+    stil = ("dark cinematic photograph, eerie atmosphere, moody dramatic lighting, "
+            "photorealistic, sharp focus, ultra detailed, 8k, no text, no watermark, no caption")
+    prompt = f"{sorgu}, {stil}"
+    parametreler = urllib.parse.urlencode(
+        {"width": HEDEF_GENISLIK, "height": HEDEF_YUKSEKLIK,
+         "seed": random.randint(1, 10_000_000), "nologo": "true",
+         "enhance": "true", "model": AI_MODEL})
+    url = ("https://image.pollinations.ai/prompt/"
+           + urllib.parse.quote(prompt) + "?" + parametreler)
+    req = urllib.request.Request(url, headers={"User-Agent": _TARAYICI_UA})
+    with urllib.request.urlopen(req, timeout=150) as r, open(hedef, "wb") as f:
+        shutil.copyfileobj(r, f)
+
+
+def _stok_foto(sorgu, kullanilmis):
+    """AI yedeği: Pixabay -> Pexels -> Openverse. (url, kredi) döner."""
+    pixabay_var = bool(PIXABAY_API_KEY.strip()) and "BURAYA_" not in PIXABAY_API_KEY
+    pexels_var = bool(PEXELS_API_KEY.strip()) and "BURAYA_" not in PEXELS_API_KEY
+    if pixabay_var:
+        u = _pixabay_foto_url(sorgu, kullanilmis)
+        if u:
+            return u, "Images via Pixabay (pixabay.com)"
+    if pexels_var:
+        u = _pexels_foto_url(sorgu, kullanilmis)
+        if u:
+            return u, "Photos via Pexels (pexels.com)"
+    bilgi = _openverse_ara(sorgu, kullanilmis)
+    if bilgi and bilgi.get("url"):
+        return bilgi["url"], f"{bilgi['creator']} ({bilgi['license']})"
+    return None, None
+
+
 def gorselleri_indir(sorgular, klasor="gecici_gorseller"):
-    """
-    Konuya uygun fotoğrafları indirir. Sıra: Pixabay -> Pexels -> Openverse (anahtarsız).
-    Her video FARKLI görseller kullanır (geçmiş videolarda kullanılanları hatırlar).
-    """
     if os.path.isdir(klasor):
         shutil.rmtree(klasor, ignore_errors=True)
     os.makedirs(klasor, exist_ok=True)
 
-    pixabay_var = bool(PIXABAY_API_KEY.strip()) and "BURAYA_" not in PIXABAY_API_KEY
-    pexels_var = bool(PEXELS_API_KEY.strip()) and "BURAYA_" not in PEXELS_API_KEY
-    kaynak = "Pixabay" if pixabay_var else ("Pexels" if pexels_var else "Openverse")
-    print(f"   (Görsel kaynağı: {kaynak})")
+    ai_mod = GORSEL_KAYNAGI.strip().lower() in ("yapayzeka", "ai", "pollinations")
+    print(f"   (Görsel kaynağı: {'Yapay Zeka - Pollinations' if ai_mod else 'Stok'})")
 
-    kullanilmis = _kullanilanlari_yukle()   # geçmiş videolarda kullanılanları yükle
-    onceki = len(kullanilmis)
+    kullanilmis = _kullanilanlari_yukle()   # stok yedeğinde tekrar önlemek için
     yollar, krediler = [], []
     for i, sorgu in enumerate(sorgular):
-        try:
-            kredi = None
-            if pixabay_var:
-                foto_url = _pixabay_foto_url(sorgu, kullanilmis)
-            elif pexels_var:
-                foto_url = _pexels_foto_url(sorgu, kullanilmis)
-            else:
-                bilgi = _openverse_ara(sorgu, kullanilmis)
-                foto_url = bilgi["url"] if bilgi else None
-                kredi = f"{bilgi['creator']} ({bilgi['license']})" if bilgi else None
-
-            if not foto_url:
-                continue
-            hedef = os.path.join(klasor, f"gorsel_{i:02d}.jpg")
-            _dosya_indir(foto_url, hedef)
-            yollar.append(hedef)
-            if kredi:
-                krediler.append(kredi)
-            print(f"   [görsel indi] {sorgu}")
-        except Exception as e:
-            print(f"   [görsel atlandı] {sorgu} -> {e}")
-
-    if pixabay_var and yollar:
-        krediler = ["Images via Pixabay (pixabay.com)"]
-    elif pexels_var and yollar:
-        krediler = ["Photos via Pexels (pexels.com)"]
-
-    # Birincil kaynaktan hiç görsel gelmezse, ANAHTARSIZ Openverse'e düş
-    if not yollar and kaynak != "Openverse":
-        print("   (Birincil kaynak boş döndü -> Openverse deneniyor)")
-        for i, sorgu in enumerate(sorgular):
+        hedef = os.path.join(klasor, f"gorsel_{i:02d}.jpg")
+        basarili = False
+        if ai_mod:   # 1) önce yapay zeka
             try:
-                bilgi = _openverse_ara(sorgu, kullanilmis)
-                if not bilgi or not bilgi.get("url"):
-                    continue
-                hedef = os.path.join(klasor, f"gorsel_{i:02d}.jpg")
-                _dosya_indir(bilgi["url"], hedef)
-                yollar.append(hedef)
-                krediler.append(f"{bilgi['creator']} ({bilgi['license']})")
-                print(f"   [görsel indi] {sorgu}")
+                _yapayzeka_gorsel_indir(sorgu, hedef)
+                if os.path.exists(hedef) and os.path.getsize(hedef) > 5000:
+                    yollar.append(hedef)
+                    krediler.append("AI images (pollinations.ai)")
+                    print(f"   [AI görsel] {sorgu[:60]}")
+                    basarili = True
             except Exception as e:
-                print(f"   [görsel atlandı] {sorgu} -> {e}")
+                print(f"   [AI görsel başarısız] -> {e}")
+        if not basarili:   # 2) AI kapalı/başarısız -> stok yedeği
+            try:
+                u, kredi = _stok_foto(sorgu, kullanilmis)
+                if u:
+                    _dosya_indir(u, hedef)
+                    yollar.append(hedef)
+                    if kredi:
+                        krediler.append(kredi)
+                    print(f"   [stok görsel] {sorgu[:60]}")
+            except Exception as e:
+                print(f"   [görsel atlandı] -> {e}")
 
-    _kullanilanlari_kaydet(kullanilmis)   # bu videodakileri de hafızaya ekle
-    print(f"   (Görsel hafızası: {onceki} -> {len(kullanilmis)} görsel)")
+    _kullanilanlari_kaydet(kullanilmis)
     return yollar, krediler
 
 
