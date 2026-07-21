@@ -397,59 +397,115 @@ def _dosya_indir(url, hedef):
         shutil.copyfileobj(r, f)
 
 
-def _pexels_foto_url(sorgu):
-    """Pexels'te bir arama yapıp ilk dikey fotoğrafın indirme adresini döner."""
-    url = "https://api.pexels.com/v1/search?" + urllib.parse.urlencode(
-        {"query": sorgu, "per_page": 1, "orientation": "portrait"}
-    )
-    req = urllib.request.Request(url, headers={"Authorization": PEXELS_API_KEY})
-    with urllib.request.urlopen(req, timeout=25) as r:
-        data = json.loads(r.read().decode("utf-8"))
-    fotolar = data.get("photos", [])
-    if not fotolar:
-        return None
-    src = fotolar[0]["src"]
-    return src.get("portrait") or src.get("large2x") or src.get("original")
+KULLANILAN_DOSYA = "kullanilan_gorseller.txt"   # geçmiş videolarda kullanılan görsellerin hafızası
 
 
-def _pixabay_foto_url(sorgu):
-    """Pixabay'de arama yapıp bir dikey fotoğrafın indirme adresini döner."""
-    url = "https://pixabay.com/api/?" + urllib.parse.urlencode(
-        {"key": PIXABAY_API_KEY, "q": sorgu, "image_type": "photo",
-         "orientation": "vertical", "per_page": 3, "safesearch": "true"}
-    )
-    req = urllib.request.Request(url, headers={"User-Agent": _TARAYICI_UA})
-    with urllib.request.urlopen(req, timeout=25) as r:
-        data = json.loads(r.read().decode("utf-8"))
-    hits = data.get("hits", [])
-    if not hits:
-        return None
-    return hits[0].get("largeImageURL") or hits[0].get("webformatURL")
+def _kullanilanlari_yukle():
+    s = set()
+    if os.path.exists(KULLANILAN_DOSYA):
+        try:
+            with open(KULLANILAN_DOSYA, encoding="utf-8") as f:
+                for satir in f:
+                    satir = satir.strip()
+                    if satir:
+                        s.add(satir)
+        except Exception:
+            pass
+    return s
 
 
-def _openverse_ara(sorgu):
-    """Openverse (ANAHTAR GEREKMEZ) üzerinden telifsiz/CC bir görsel bulur."""
-    url = "https://api.openverse.org/v1/images/?" + urllib.parse.urlencode(
-        {"q": sorgu, "license": "cc0,pdm,by", "page_size": 1, "mature": "false"}
-    )
-    req = urllib.request.Request(url, headers={"User-Agent": "ShortsBot/1.0 (personal)"})
-    with urllib.request.urlopen(req, timeout=25) as r:
-        data = json.loads(r.read().decode("utf-8"))
-    res = data.get("results", [])
-    if not res:
-        return None
-    it = res[0]
-    return {
-        "url": it.get("url"),
-        "creator": it.get("creator") or "Unknown",
-        "license": (it.get("license") or "").upper(),
-    }
+def _kullanilanlari_kaydet(kullanilmis):
+    try:
+        with open(KULLANILAN_DOSYA, "w", encoding="utf-8") as f:
+            for k in sorted(kullanilmis):
+                f.write(k + "\n")
+    except Exception as e:
+        print(f"   [uyarı] görsel hafızası kaydedilemedi: {e}")
+
+
+def _pexels_foto_url(sorgu, kullanilmis):
+    for sayfa in (random.randint(1, 5), 1):
+        try:
+            url = "https://api.pexels.com/v1/search?" + urllib.parse.urlencode(
+                {"query": sorgu, "per_page": 30, "page": sayfa, "orientation": "portrait"})
+            req = urllib.request.Request(url, headers={"Authorization": PEXELS_API_KEY,
+                                                       "User-Agent": _TARAYICI_UA})
+            with urllib.request.urlopen(req, timeout=25) as r:
+                data = json.loads(r.read().decode("utf-8"))
+        except Exception:
+            continue
+        fotolar = data.get("photos", [])
+        if not fotolar:
+            continue
+        random.shuffle(fotolar)
+        for foto in fotolar:
+            anahtar = f"pex:{foto.get('id')}"
+            if anahtar in kullanilmis:
+                continue
+            src = foto.get("src", {})
+            u = src.get("portrait") or src.get("large2x") or src.get("original")
+            if u:
+                kullanilmis.add(anahtar)
+                return u
+    return None
+
+
+def _pixabay_foto_url(sorgu, kullanilmis):
+    # Rastgele DERİN sayfa + karıştır + daha önce KULLANILMAMIŞ görsel seç
+    for sayfa in (random.randint(1, 10), random.randint(1, 4), 1):
+        try:
+            url = "https://pixabay.com/api/?" + urllib.parse.urlencode(
+                {"key": PIXABAY_API_KEY, "q": sorgu, "image_type": "photo",
+                 "orientation": "vertical", "per_page": 30, "page": sayfa, "safesearch": "true"})
+            req = urllib.request.Request(url, headers={"User-Agent": _TARAYICI_UA})
+            with urllib.request.urlopen(req, timeout=25) as r:
+                data = json.loads(r.read().decode("utf-8"))
+        except Exception:
+            continue
+        hits = data.get("hits", [])
+        if not hits:
+            continue
+        random.shuffle(hits)
+        for h in hits:
+            anahtar = f"px:{h.get('id')}"
+            if anahtar in kullanilmis:
+                continue
+            u = h.get("largeImageURL") or h.get("webformatURL")
+            if u:
+                kullanilmis.add(anahtar)
+                return u
+    return None
+
+
+def _openverse_ara(sorgu, kullanilmis):
+    for sayfa in (random.randint(1, 5), random.randint(1, 2), 1):
+        try:
+            url = "https://api.openverse.org/v1/images/?" + urllib.parse.urlencode(
+                {"q": sorgu, "license": "cc0,pdm,by", "page_size": 20, "page": sayfa, "mature": "false"})
+            req = urllib.request.Request(url, headers={"User-Agent": _TARAYICI_UA})
+            with urllib.request.urlopen(req, timeout=25) as r:
+                data = json.loads(r.read().decode("utf-8"))
+        except Exception:
+            continue
+        res = data.get("results", [])
+        if not res:
+            continue
+        random.shuffle(res)
+        for it in res:
+            u = it.get("url")
+            anahtar = f"ov:{u}"
+            if not u or anahtar in kullanilmis:
+                continue
+            kullanilmis.add(anahtar)
+            return {"url": u, "creator": it.get("creator") or "Unknown",
+                    "license": (it.get("license") or "").upper()}
+    return None
 
 
 def gorselleri_indir(sorgular, klasor="gecici_gorseller"):
     """
     Konuya uygun fotoğrafları indirir. Sıra: Pixabay -> Pexels -> Openverse (anahtarsız).
-    (yollar, krediler) döner; krediler açıklamaya eklenir (CC atıf için).
+    Her video FARKLI görseller kullanır (geçmiş videolarda kullanılanları hatırlar).
     """
     if os.path.isdir(klasor):
         shutil.rmtree(klasor, ignore_errors=True)
@@ -460,16 +516,18 @@ def gorselleri_indir(sorgular, klasor="gecici_gorseller"):
     kaynak = "Pixabay" if pixabay_var else ("Pexels" if pexels_var else "Openverse")
     print(f"   (Görsel kaynağı: {kaynak})")
 
+    kullanilmis = _kullanilanlari_yukle()   # geçmiş videolarda kullanılanları yükle
+    onceki = len(kullanilmis)
     yollar, krediler = [], []
     for i, sorgu in enumerate(sorgular):
         try:
             kredi = None
             if pixabay_var:
-                foto_url = _pixabay_foto_url(sorgu)
+                foto_url = _pixabay_foto_url(sorgu, kullanilmis)
             elif pexels_var:
-                foto_url = _pexels_foto_url(sorgu)
+                foto_url = _pexels_foto_url(sorgu, kullanilmis)
             else:
-                bilgi = _openverse_ara(sorgu)
+                bilgi = _openverse_ara(sorgu, kullanilmis)
                 foto_url = bilgi["url"] if bilgi else None
                 kredi = f"{bilgi['creator']} ({bilgi['license']})" if bilgi else None
 
@@ -494,7 +552,7 @@ def gorselleri_indir(sorgular, klasor="gecici_gorseller"):
         print("   (Birincil kaynak boş döndü -> Openverse deneniyor)")
         for i, sorgu in enumerate(sorgular):
             try:
-                bilgi = _openverse_ara(sorgu)
+                bilgi = _openverse_ara(sorgu, kullanilmis)
                 if not bilgi or not bilgi.get("url"):
                     continue
                 hedef = os.path.join(klasor, f"gorsel_{i:02d}.jpg")
@@ -505,6 +563,8 @@ def gorselleri_indir(sorgular, klasor="gecici_gorseller"):
             except Exception as e:
                 print(f"   [görsel atlandı] {sorgu} -> {e}")
 
+    _kullanilanlari_kaydet(kullanilmis)   # bu videodakileri de hafızaya ekle
+    print(f"   (Görsel hafızası: {onceki} -> {len(kullanilmis)} görsel)")
     return yollar, krediler
 
 
