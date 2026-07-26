@@ -95,6 +95,10 @@ PRIVACY            = os.environ.get("PRIVACY") or "public"   # "public" / "unlis
 # Bulutta varsayilan ACIK; yerelde sadece video uretmek icin: set UPLOAD_TO_YOUTUBE=0
 UPLOAD_TO_YOUTUBE  = os.environ.get("UPLOAD_TO_YOUTUBE", "1") != "0"
 
+# --- Marka / Abone ol ---
+LOGO_PATH        = os.path.join(BASE_DIR, "assets", "logo.png")   # kanal logosu (kose + abone cagrisi)
+ABONE_YAZI       = "SUBSCRIBE"                                     # abone cagrisinda gorunen yazi
+
 # --- Cikti dosyalari ---
 AUDIO_FILE       = os.path.join(BASE_DIR, "ses.mp3")
 OUTPUT_FILE      = os.path.join(BASE_DIR, "shorts_hazir.mp4")
@@ -692,6 +696,41 @@ def _altyazi_klipleri(words, font_path):
     return klipler
 
 
+def _marka_klipleri(dur, font_path):
+    """Kose logosu (kalici) + animasyonlu ABONE OL cagrisi (orta + son) -> abone tesviki."""
+    from moviepy import ImageClip, TextClip, vfx
+    klipler = []
+    if not os.path.exists(LOGO_PATH):
+        return klipler
+    try:
+        # 1) KOSE LOGOSU (sol ust, kucuk, hafif saydam, TUM video boyunca)
+        kb = int(W * 0.13)
+        klipler.append(ImageClip(LOGO_PATH).resized((kb, kb))
+                       .with_duration(dur).with_position((36, 40)).with_opacity(0.82))
+
+        # 2) ABONE OL CAGRISI (logo + yazi, fade in/out animasyonlu; altyazilarin USTUNDE, ust ucte)
+        lb = int(W * 0.20)
+        yaz_y = int(H * 0.30) + lb - 6
+        def cta(basla, sure=3.2):
+            lg = (ImageClip(LOGO_PATH).resized((lb, lb))
+                  .with_start(basla).with_duration(sure)
+                  .with_position(("center", int(H * 0.30)))
+                  .with_effects([vfx.CrossFadeIn(0.4), vfx.CrossFadeOut(0.4)]))
+            yz = (TextClip(font=font_path, text=ABONE_YAZI, font_size=78, color="yellow",
+                           stroke_color="black", stroke_width=7, method="caption",
+                           size=(int(W * 0.8), 130), horizontal_align="center", vertical_align="center")
+                  .with_start(basla).with_duration(sure)
+                  .with_position(("center", yaz_y))
+                  .with_effects([vfx.CrossFadeIn(0.4), vfx.CrossFadeOut(0.4)]))
+            return [lg, yz]
+        klipler += cta(dur * 0.45)                 # ortada bir kez
+        if dur > 9:
+            klipler += cta(max(dur - 4.2, dur * 0.6))   # sona dogru bir kez daha
+    except Exception as e:
+        print("  (marka/abone klibi atlandi:", e, ")")
+    return klipler
+
+
 def video_olustur(words, medya, out_path):
     from moviepy import AudioFileClip, CompositeVideoClip
 
@@ -714,8 +753,9 @@ def video_olustur(words, medya, out_path):
 
     bg = _arka_plan_montaj(medya, dur)
     altyazilar = _altyazi_klipleri(words, font_path)
+    marka = _marka_klipleri(dur, font_path)        # kose logosu + abone cagrisi
 
-    final = CompositeVideoClip([bg, *altyazilar], size=(W, H))
+    final = CompositeVideoClip([bg, *altyazilar, *marka], size=(W, H))
     final = final.with_audio(audio).with_duration(dur)
 
     final.write_videofile(
