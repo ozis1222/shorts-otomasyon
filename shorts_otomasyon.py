@@ -1,800 +1,838 @@
 # -*- coding: utf-8 -*-
 """
-===================================================================
-   TAM OTOMATİK YOUTUBE SHORTS OTOMASYONU
-   Niş: Unsolved Mysteries & Creepy Facts (İngilizce / küresel)
-===================================================================
-Akış (hepsi otomatik):
-  1) İçerik üretimi (Gemini, ÜCRETSİZ) -> konu + senaryo + başlık + açıklama + etiket
-  2) Seslendirme (edge-tts, ÜCRETSİZ)  -> ses.mp3 (İngilizce doğal erkek ses)
-  3) Kurgu + sarı altyazı (MoviePy)    -> shorts_hazir.mp4
-  4) YouTube'a "Gizli" yükleme         -> YouTube Data API v3
+============================================================
+   ÜCRETSİZ YOUTUBE SHORTS OTOMASYONU  (Tam Otomatik)
+============================================================
+Hiçbir ücretli/üyelikli servis KULLANILMAZ.
 
-Sen sadece çalıştırırsın. Konuyu, senaryoyu, başlığı sistem kendi bulur.
-edge-tts her kelimenin zamanını verdiği için altyazılar sesle BİREBİR senkron olur.
-===================================================================
+Akış (her calistirmada sirayla, elle hicbir sey yapmadan):
+  1) Gemini (ucretsiz)   -> konu + senaryo + baslik + aciklama + etiket
+                            + KONUYA UYGUN gorsel arama kelimeleri uretir
+  2) edge-tts (ucretsiz) -> senaryoyu Ingilizce dogal sesle okur -> ses.mp3
+  3) Pixabay/Pexels/Openverse (ucretsiz) -> KONUYA GORE otomatik arka plan
+                            VIDEO (yoksa FOTOGRAF) indirir  <-- ARTIK OTOMATIK
+  4) MoviePy (ucretsiz)  -> 1080x1920 dikey montaj + SENKRON sari altyazi
+  5) YouTube Data API v3 -> videoyu "public" (herkese acik) olarak yukler
+
+Calistirmak icin:  python main.py
+Hem yerel Windows'ta hem GitHub Actions (bulut/Linux) uzerinde calisir.
+Anahtarlar ortam degiskeninden (secret) okunur; yoksa asagidaki degerler kullanilir.
 """
 
 import os
+import re
 import sys
-import glob
 import json
 import random
-import shutil
 import asyncio
-import urllib.parse
-import urllib.request
+import warnings
 
-import edge_tts
-import numpy as np
-from moviepy import (
-    VideoFileClip,
-    VideoClip,
-    ImageClip,
-    AudioFileClip,
-    TextClip,
-    CompositeVideoClip,
-    concatenate_videoclips,
-)
+# Windows konsolu/log dosyasi emoji veya Turkce karakterde PATLAMASIN diye stdout'u UTF-8 yap
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
-from google import genai
-from google.genai import types
+# MoviePy'nin zararsiz "son kare okunamadi" uyarisini gizle (video yine de dogru uretilir)
+warnings.filterwarnings("ignore", message=r".*bytes wanted but.*")
 
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+# Bu dosyanin bulundugu klasor -> tum yollar buna gore (Windows'ta da Linux/bulut'ta da calisir)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# =========================================================
+#  1) AYARLAR  ->  Sadece bu bolumu duzenlemen yeterli
+# =========================================================
 
-# ==================================================================
-#  AYARLAR  ->  BURAYI KENDİNE GÖRE DÜZENLE
-# ==================================================================
-
-# --- 1) GEMINI (senaryo üreten ücretsiz yapay zeka) ---
-
-# Ücretsiz API anahtarını buradan al: https://aistudio.google.com/apikey
+# --- Gemini (ÜCRETSİZ: https://aistudio.google.com/apikey ) ---
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "AQ.Ab8RN6IE55HA57S9m5hpM42Iyr_Ct0_b6n2z5wSWGQ2dhr5x-Q"
+GEMINI_MODEL   = os.environ.get("GEMINI_MODEL") or "gemini-flash-latest"   # calisiyor. Alt: "gemini-3.5-flash", "gemini-3-flash-preview"
 
-# "auto" = kod, senin hesabında ÇALIŞAN en güncel Gemini modelini kendi bulur.
-# İstersen elle bir model adı da yazabilirsin (örn. "gemini-2.0-flash").
-GEMINI_MODEL = "auto"
+# --- Kanalin konusu (Gemini buradan konu + gorsel kelimelerini uretir, hep INGILIZCE) ---
+NICHE = ("real unsolved mysteries, unexplained events, mysterious disappearances, "
+         "strange historical cases, cold cases and eerie unexplained phenomena")
 
-# İSTERSEN belirli bir konu zorla (örn. "The Dyatlov Pass incident").
-# Boş bırakırsan sistem niş içinde her seferinde farklı bir konu seçer.
-KONU_IPUCU = ""
+# --- Arka plan gorselleri icin ANAHTARLAR (hepsi ucretsiz) ---
+#  * Pixabay (ONERILIR - VIDEO indirmek icin sart): https://pixabay.com/api/docs/
+#  * Pexels  (opsiyonel yedek, video+foto):         https://www.pexels.com/api/
+#  Ikisini de bos birakirsan gorseller anahtar GEREKTIRMEYEN Openverse'ten (foto) gelir.
+PIXABAY_API_KEY = os.environ.get("PIXABAY_API_KEY") or "56752910-1e70a403809949c23e6637cf1"   # video icin gerekli
+PEXELS_API_KEY  = os.environ.get("PEXELS_API_KEY") or ""                                        # opsiyonel
 
+# --- Seslendirme (Ingilizce dogal erkek sesleri) ---
+VOICE = "en-US-ChristopherNeural"   # gizem nisi - derin/otoriter anlatici
 
-# --- 1b) GÖRSELLER (konuya uygun fotoğraflar) ---
+# --- Altyazi ayarlari ---
+FONT_PATH       = os.path.join(BASE_DIR, "fonts", "Anton-Regular.ttf")  # modern caption fontu (repoda gomulu)
+WORDS_PER_CHUNK = 3          # ekranda ayni anda kac kelime gorunsun (2-3 ideal)
+FONT_SIZE       = 115        # Anton sikisik/uzun bir font -> 3 kelime tek satira sigar
+TEXT_COLOR      = "yellow"
+STROKE_COLOR    = "black"
+STROKE_WIDTH    = 8          # kalin siyah kenarlik -> her arka planda net okunur
+SUBTITLE_Y      = 0.72       # dikey konum (viral tarz ~0.72)
 
-# Sistem şu SIRAYLA dener: PIXABAY -> PEXELS -> OPENVERSE (anahtarsız).
-# İkisini de boş bıraksan bile Openverse ANAHTAR İSTEMEDEN çalışır, görsel gelir.
+# --- Video boyutu (Shorts = dikey) ---
+W, H = 1080, 1920
 
-# Pixabay ücretsiz anahtar: https://pixabay.com/api/docs/
-PIXABAY_API_KEY = os.environ.get("PIXABAY_API_KEY") or "56752910-1e70a403809949c23e6637cf1"
+# --- Otomatik indirilen medyalarin gecici klasoru ---
+MEDYA_KLASORU = os.path.join(BASE_DIR, "medya_gecici")
+# --- (YEDEK) Internetten hic gorsel gelmezse buradaki videolardan secer (opsiyonel) ---
+YEDEK_VIDEO_KLASORU = os.path.join(BASE_DIR, "arka_plan_videolar")
 
-# Pexels ücretsiz anahtar (isteğe bağlı): https://www.pexels.com/api/
-PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY") or ""
+# --- MANUEL MOD (True yaparsan Gemini kullanmaz, asagidakileri kullanir) ---
+MANUAL_MODE      = False
+senaryo_metni    = """Buraya kendi senaryonu yapistirabilirsin (yalnizca MANUAL_MODE = True ise kullanilir)."""
+video_basligi    = "My Video Title #Shorts"
+video_aciklamasi = "My description here. #Shorts"
+etiketler        = ["shorts", "facts"]
+gorsel_sorgulari = ["dark foggy forest night", "abandoned building at night", "old mysterious documents", "snowy mountains blizzard", "empty dark road at night", "misty graveyard night"]
 
-# --- Görsel kaynağı ---
-#   "yapayzeka" = Pollinations (ücretsiz+anahtarsız, her görsel BENZERSİZ, dikey üretir)
-#   "pixabay"   = stok fotoğraflar. AI başarısız olursa otomatik stok'a düşer.
-GORSEL_KAYNAGI = "yapayzeka"
-AI_MODEL = "flux"   # "flux" (kaliteli) veya "turbo" (hızlı)
+# --- YouTube ---
+CLIENT_SECRET_FILE = os.path.join(BASE_DIR, "client_secret.json")
+TOKEN_FILE         = os.path.join(BASE_DIR, "token.json")
+CATEGORY_ID        = "27"       # 27=Education, 24=Entertainment, 22=People & Blogs
+PRIVACY            = os.environ.get("PRIVACY") or "public"   # "public" / "unlisted" / "private"
+# Bulutta varsayilan ACIK; yerelde sadece video uretmek icin: set UPLOAD_TO_YOUTUBE=0
+UPLOAD_TO_YOUTUBE  = os.environ.get("UPLOAD_TO_YOUTUBE", "1") != "0"
 
+# --- Cikti dosyalari ---
+AUDIO_FILE       = os.path.join(BASE_DIR, "ses.mp3")
+OUTPUT_FILE      = os.path.join(BASE_DIR, "shorts_hazir.mp4")
+USED_TOPICS_FILE = os.path.join(BASE_DIR, "kullanilan_konular.txt")
 
-# --- 2) Klasör ve dosya yolları ---
-
-# Telifsiz arka plan (stok) videolarının bulunduğu klasör.
-# Gizem nişi için karanlık/atmosferik, sisli, gece, uzay gibi fonlar iyi durur.
-STOK_VIDEO_KLASORU = r"C:\Users\Ozan\Desktop\ozzan\stok_videolar"
-
-# Altyazıda kullanılacak KALIN font dosyası (yol bilgisayarına göre değişir).
-#   Windows (Arial Bold):  C:\Windows\Fonts\arialbd.ttf
-#   Mac    (Arial Bold) :  /System/Library/Fonts/Supplemental/Arial Bold.ttf
-FONT_PATH = r"C:\Windows\Fonts\arialbd.ttf"
-
-
-# --- 3) Seslendirme ayarları (İngilizce erkek ses) ---
-
-# Gizem nişine yakışan derin/ölçülü İngilizce erkek sesleri:
-#   "en-US-ChristopherNeural"  (derin, otoriter - önerilir)
-#   "en-US-GuyNeural"          (doğal, dengeli)
-#   "en-US-BrianNeural"        (sıcak, anlatıcı)
-#   "en-US-EricNeural" / "en-US-AndrewNeural"
-SES = "en-US-ChristopherNeural"
-
-SES_DOSYASI = "ses.mp3"           # üretilecek ses dosyası
-CIKTI_VIDEO = "shorts_hazir.mp4"  # üretilecek nihai video
-
-
-# --- 4) Altyazı görünümü ---
-
-HER_EKRANDA_KELIME = 3   # her altyazıda kaç kelime görünsün (2 veya 3 önerilir)
-YAZI_BOYUTU = 90         # altyazı punto
-YAZI_RENGI = "yellow"    # altyazı rengi (sarı)
-KENARLIK_RENGI = "black" # yazının etrafındaki kenarlık (okunurluk için)
-KENARLIK_KALINLIGI = 6
-
-# Altyazının dikey konumu (0.0 = en üst, 1.0 = en alt). Viral tarz için ~0.72 idealdir.
-ALTYAZI_DIKEY = 0.72
+# Tarayici gibi gorunelim (Pixabay bazen 403 verir)
+USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/122.0 Safari/537.36")
 
 
-# --- 5) Video boyutu (Shorts = dikey 9:16) ---
+# =========================================================
+#  2) GEMINI ile konu + senaryo + gorsel kelimeleri uret
+# =========================================================
+def gemini_uret():
+    from google import genai
 
-HEDEF_GENISLIK = 1080
-HEDEF_YUKSEKLIK = 1920
-
-
-# --- 6) YouTube ayarı ---
-
-# 24 = Entertainment (gizem/hikâye için uygun). Alternatif: 27=Education, 22=People & Blogs
-YOUTUBE_KATEGORI = "24"
-
-
-# ==================================================================
-#  ADIM 1: İÇERİK ÜRETİMİ (Gemini)
-# ==================================================================
-
-# Niş içinde çeşitlilik için farklı açılar. Her çalıştırmada biri seçilir,
-# böylece videolar birbirinin kopyası olmaz.
-ACILAR = [
-    "a mysterious disappearance that was never solved",
-    "an unexplained sound, signal, or transmission",
-    "an eerie abandoned place with a strange history",
-    "a baffling historical event with no clear explanation",
-    "a strange artifact or object that shouldn't exist",
-    "an unsettling deep-sea or ocean mystery",
-    "a chilling unsolved case from the past",
-    "a bizarre coincidence that still puzzles experts",
-    "a declassified or once-secret file",
-    "an unexplained natural phenomenon",
-    "a creepy fact about the human body or mind",
-    "a lost civilization or vanished group of people",
-]
-
-
-def _model_sec(client):
-    """Hesabında ÇALIŞAN, içerik üretebilen bir Gemini modeli seçer ('auto' için)."""
-    mevcut = []
-    for m in client.models.list():
-        eylemler = (getattr(m, "supported_actions", None)
-                    or getattr(m, "supported_generation_methods", None) or [])
-        if eylemler and "generateContent" not in eylemler:
-            continue
-        mevcut.append(m.name.replace("models/", ""))
-
-    tercih = [
-        "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash",
-        "gemini-flash-lite-latest", "gemini-2.5-flash-lite",
-    ]
-    for t in tercih:
-        if t in mevcut:
-            return t
-    for ad in mevcut:                       # tercih listesinde yoksa herhangi bir 'flash'
-        if "flash" in ad.lower():
-            return ad
-    if mevcut:                              # o da yoksa üretebilen ilk model
-        return mevcut[0]
-    raise RuntimeError("Hesabında içerik üretebilen bir Gemini modeli bulunamadı.")
-
-
-def icerik_uret():
-    """Gemini ile konu + senaryo + başlık + açıklama + etiketleri üretir."""
     client = genai.Client(api_key=GEMINI_API_KEY)
 
-    if GEMINI_MODEL.strip().lower() in ("", "auto"):
-        model = _model_sec(client)
-    else:
-        model = GEMINI_MODEL
-    print(f"    (Kullanılan model: {model})")
+    onceki = ""
+    if os.path.exists(USED_TOPICS_FILE):
+        with open(USED_TOPICS_FILE, "r", encoding="utf-8") as f:
+            onceki = f.read().strip()
 
-    if KONU_IPUCU.strip():
-        konu_talimati = f'Use this exact topic: "{KONU_IPUCU.strip()}".'
-    else:
-        aci = random.choice(ACILAR)
-        konu_talimati = (
-            f"Pick ONE specific, real, well-documented topic in this direction: {aci}. "
-            "Choose something genuinely intriguing but avoid the most overused clickbait cases."
-        )
+    prompt = f"""You are the writer for a HIGH-QUALITY, curiosity-driven ENGLISH YouTube Shorts channel.
+Channel niche: {NICHE}
 
-    prompt = f"""You are the writer for a faceless YouTube Shorts channel about UNSOLVED MYSTERIES and CREEPY-BUT-TRUE facts, for a global English-speaking audience.
+--- STAY IN YOUR LANE (this channel must NEVER overlap our other channels) ---
+This channel is ONLY about real UNSOLVED MYSTERIES and unexplained events: mysterious disappearances
+(people, ships, planes, expeditions), strange unsolved historical cases (like the Dyatlov Pass), eerie
+unexplained phenomena, famous cold cases, and dark true mysteries that were never solved.
+Keep it eerie and suspenseful, based on REAL documented cases (present unproven theories AS theories, not fact).
+SIGNATURE HOOK STYLE: open with a chilling unanswered question or a stark unexplained fact, and vary it every
+time. Examples of the vibe (do NOT reuse verbatim): "Nine hikers ran into the snow, barefoot, and never came back."
+/ "The ship was found sailing itself, the entire crew simply gone." / "To this day, no one can explain that night."
 
-{konu_talimati}
+Create ONE brand-new Short about a SINGLE gripping real unsolved mystery or unexplained case.
+Every video must cover a DIFFERENT, specific topic. Do NOT repeat or closely resemble any of these
+already-used topics:
+{onceki if onceki else "(none yet)"}
 
-Write a single Short and return ONLY valid JSON with these exact keys:
-- "topic": short label of the chosen topic.
-- "script": the narration to be read aloud. Rules: English, 110-140 words (about 45-50 seconds spoken), a powerful hook in the FIRST sentence, build suspense, and end on an eerie or open "what really happened?" style line. Plain spoken sentences only. NO stage directions, NO emojis, NO hashtags, NO sound-effect notes, NO headings.
-- "title": a highly clickable, curiosity-driven title optimized for YouTube Shorts search, max 70 characters. Lead with the strongest hook or main keyword. No fake/false claims.
-- "description": a 2-3 sentence hooky summary that naturally includes searchable keywords, then a new line with 6-8 relevant hashtags (include #Shorts and #mystery).
-- "tags": an array of 15 lowercase strings that MIX broad high-traffic terms (e.g. "unsolved mystery", "creepy", "scary", "unexplained", "true stories", "documentary") with terms specific to THIS topic. No "#" symbol.
-- "image_queries": an array of 6-8 RICH, DETAILED cinematic image descriptions (full scenes, NOT short keywords) that match the story's setting and eerie mood, written for an AI image generator. Each must describe subject + setting + mood + lighting (e.g. "a foggy abandoned house deep in a dark pine forest at night, faint moonlight, unsettling eerie atmosphere, cinematic wide shot", "an old rusted ghost ship drifting in thick fog on a still black sea, cold blue moonlight, ominous"). Make them vivid and specific. No real people's names, no on-image text, no logos.
+Pick a fresh angle. Rotate across ideas like: mysterious disappearances (people, ships, planes, whole
+expeditions), unsolved historical mysteries, eerie unexplained phenomena, famous cold cases, lost cities
+or treasures, strange events witnessed by many, unexplained discoveries, and "what really happened" cases.
+Be specific, not generic.
 
-Important:
-- Base it on real, documented mysteries. Do NOT invent fake events and present them as fact. If a detail is uncertain, phrase it as "some believe" or "it is said".
-- Keep it advertiser-friendly (PG-13): mysterious and eerie, but no gore, no graphic violence.
-- Make each video feel fresh and different.
+Rules for the "script" (spoken narration):
+- Language: English.
+- Length: 100-150 words (about 40-55 seconds when spoken).
+- The FIRST sentence MUST be a strong scroll-stopping HOOK, and it MUST be DIFFERENT every video --
+  never reuse the same opening word or phrase. Do NOT start with "Imagine" (overused). Rotate the style:
+  a shocking fact, a bold claim, a surprising number, a "What if...", or a direct question.
+- Content must be SCIENTIFICALLY ACCURATE and based on real astronomy. Do NOT invent fake facts or numbers.
+  It is fine to explore real open questions and mysteries, but present speculation clearly as speculation.
+- Awe-inspiring, vivid but simple spoken style. Short sentences. Build tension toward a "wow" moment.
+- NO stage directions, NO emojis, NO "[music]".
+- End with one short line that invites the viewer to follow for more cosmic mysteries.
 
-Return JSON only, nothing else."""
+RETENTION RULES (this decides whether the video blows up -- target 70%+ average view duration):
+- The first 1-2 seconds are EVERYTHING. The FIRST sentence is the hook: MAX ~12 words, front-load the single
+  most shocking element FIRST, and open a curiosity GAP the viewer NEEDS resolved. No throat-clearing, no
+  "Today"/"Welcome"/"Imagine", no slow build. Keep every sentence short and punchy to hold attention.
+- End with a line that pays off or twists that gap, so viewers stay to the very end (this lifts retention).
+- VISUAL SYNC (very important): list "visual_queries" IN THE SAME ORDER as the narration -- query 1 must show
+  EXACTLY what the opening line describes, and each next query must match the next thing said, evenly from
+  start to finish, so the on-screen image ALWAYS matches the words at that moment. Give 7-8 queries.
 
-    response = client.models.generate_content(
-        model=model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            temperature=1.1,
-        ),
-    )
+Return ONLY valid JSON (no markdown, no ```), EXACTLY this shape:
+{{
+  "topic": "short specific topic label",
+  "script": "the full narration text as one paragraph",
+  "title": "catchy, curiosity-driven YouTube title under 90 characters, include #Shorts",
+  "description": "2-3 sentence description, then a few relevant hashtags",
+  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6"],
+  "visual_queries": ["query1", "query2", "query3", "query4", "query5", "query6"]
+}}
 
-    ham = response.text.strip()
-    # Nadiren ```json ... ``` sarmalı gelirse temizle
-    if ham.startswith("```"):
-        ham = ham.strip("`")
-        ham = ham[ham.find("{"): ham.rfind("}") + 1]
+About "visual_queries" -- THIS IS A DARK MYSTERY channel, footage MUST look eerie and cinematic:
+- Provide 6 to 8 SPECIFIC Pixabay search phrases (3 to 6 words each) for REAL footage matching DISTINCT parts
+  of THIS exact topic. Be specific and concrete (not "mystery" but "dark foggy forest at night"; not "old" but
+  "old abandoned wooden cabin").
+- EVERY phrase should feel dark, eerie and cinematic: night, fog, shadows, abandoned places, storms, snow,
+  dim light, empty roads, old documents, cold isolated locations.
+- Each phrase MUST be clearly DIFFERENT and describe a different concrete real scene of the topic.
+- STRICTLY FORBIDDEN: flowers, insects, cute animals, happy people, weddings, food, offices, bright sunny nature.
+- Good examples: "dark foggy forest night", "abandoned building interior", "snowy mountains blizzard",
+  "empty dark road at night", "old handwritten documents", "stormy ocean waves dark", "misty graveyard night".
+"""
 
-    data = json.loads(ham)
+    # GECICI hatalar (503 asiri yuk / 429 kota / 500 / timeout) icin tekrar dene + yedek modele gec
+    import time
+    modeller, gorulen = [], set()
+    for md in [GEMINI_MODEL, "gemini-3.5-flash", "gemini-3-flash-preview"]:
+        if md and md not in gorulen:
+            gorulen.add(md); modeller.append(md)
 
-    # Etiketleri temizle (baştaki # ve boşlukları at)
-    etiketler = [str(t).lstrip("#").strip() for t in data.get("tags", []) if str(t).strip()]
-    gorsel_sorgulari = [str(q).strip() for q in data.get("image_queries", []) if str(q).strip()]
-
-    return {
-        "konu": data["topic"],
-        "senaryo": data["script"].strip(),
-        "baslik": data["title"].strip(),
-        "aciklama": data["description"].strip(),
-        "etiketler": etiketler,
-        "gorsel_sorgulari": gorsel_sorgulari,
-    }
-
-
-# ==================================================================
-#  ADIM 2: SESLENDİRME (edge-tts) + KELİME ZAMANLAMASI
-# ==================================================================
-
-async def _seslendir_ve_zamanla(metin, ses, ses_dosyasi):
-    """
-    Metni seslendirip ses.mp3 olarak kaydeder ve her kelimenin
-    başlangıç anını + süresini toplar (altyazı senkronu için).
-    edge-tts zaman birimi '100 nanosaniye' -> 10.000.000'a bölünce saniye.
-    """
-    communicate = edge_tts.Communicate(metin, ses)
-    kelimeler = []
-
-    with open(ses_dosyasi, "wb") as f:
-        async for parca in communicate.stream():
-            if parca["type"] == "audio":
-                f.write(parca["data"])
-            elif parca["type"] == "WordBoundary":
-                kelimeler.append({
-                    "kelime": parca["text"],
-                    "baslangic": parca["offset"] / 10_000_000,
-                    "sure": parca["duration"] / 10_000_000,
-                })
-
-    return kelimeler
-
-
-def seslendir(metin, ses, ses_dosyasi):
-    """Async fonksiyonu normal (senkron) şekilde çalıştırır."""
-    return asyncio.run(_seslendir_ve_zamanla(metin, ses, ses_dosyasi))
+    son_hata = None
+    for model in modeller:
+        for deneme in range(1, 5):
+            try:
+                resp = client.models.generate_content(model=model, contents=prompt)
+                text = (resp.text or "").strip()
+                bulunan = re.search(r"\{.*\}", text, re.S)
+                if not bulunan:
+                    raise RuntimeError("Gemini gecerli JSON dondurmedi: " + text[:120])
+                data = json.loads(bulunan.group(0))
+                with open(USED_TOPICS_FILE, "a", encoding="utf-8") as f:
+                    f.write((data.get("topic", "").strip()) + "\n")
+                print(f"      (Gemini model: {model})")
+                return data
+            except Exception as e:
+                son_hata = e
+                mesaj = str(e).lower()
+                gecici = any(k in mesaj for k in ("503", "429", "500", "unavailable",
+                             "overloaded", "resource_exhausted", "high demand", "timeout", "deadline"))
+                if gecici and deneme < 4:
+                    bekle = 5 * deneme      # 5s, 10s, 15s artan bekleme
+                    print(f"      Gemini gecici hata ({model}, deneme {deneme}): {bekle}s bekle...")
+                    time.sleep(bekle)
+                    continue
+                print(f"      Model '{model}' olmadi ({str(e)[:70]}), sonraki modele...")
+                break
+    raise RuntimeError(f"Gemini hicbir modelle uretemedi. Son hata: {son_hata}")
 
 
-# ==================================================================
-#  ADIM 3: KURGU + ALTYAZI (MoviePy)
-# ==================================================================
+# =========================================================
+#  3) edge-tts ile seslendir + KELIME ZAMANLAMASI
+# =========================================================
+async def seslendir_ve_zamanla(text, voice, out_path):
+    import edge_tts
 
-def kelime_gruplari(kelimeler, grup_boyutu, toplam_sure):
-    """Kelimeleri 2-3'erli gruplara böler, zamanlamalarını hesaplar."""
+    # edge-tts 7.x: kelime senkronu icin boundary="WordBoundary" SART (varsayilan SentenceBoundary)
+    try:
+        communicate = edge_tts.Communicate(text, voice, boundary="WordBoundary")
+    except TypeError:   # cok eski edge-tts: 'boundary' argumani yok
+        communicate = edge_tts.Communicate(text, voice)
+
+    words, sentences, audio_bytes = [], [], 0
+    with open(out_path, "wb") as f:
+        async for chunk in communicate.stream():
+            tur = chunk["type"]
+            if tur == "audio":
+                f.write(chunk["data"])
+                audio_bytes += len(chunk["data"])
+            elif tur == "WordBoundary":
+                s = chunk["offset"] / 10_000_000          # 100ns -> saniye
+                d = chunk["duration"] / 10_000_000
+                words.append({"word": chunk["text"], "start": s, "end": s + d})
+            elif tur == "SentenceBoundary":
+                s = chunk["offset"] / 10_000_000
+                d = chunk["duration"] / 10_000_000
+                sentences.append({"text": chunk["text"], "start": s, "end": s + d})
+
+    if audio_bytes < 1024:
+        raise RuntimeError("edge-tts ses uretemedi (internet ya da servis sorunu olabilir).")
+
+    if words:                                             # en iyi: birebir kelime senkronu
+        return words
+    if sentences:                                         # yedek: cumle zamanindan kelime turet
+        return _cumleden_kelime_zamani(sentences)
+    return _sese_esit_dagit(text, out_path)               # son care: ses suresine esit dagit
+
+
+def _cumleden_kelime_zamani(sentences):
+    """Cumle sinirlarindan, kelime uzunluguna gore orantili kelime zamanlamasi uretir."""
+    out = []
+    for c in sentences:
+        parcalar = c["text"].split()
+        if not parcalar:
+            continue
+        toplam = sum(len(p) for p in parcalar) or 1
+        t = c["start"]
+        for p in parcalar:
+            d = (c["end"] - c["start"]) * (len(p) / toplam)
+            out.append({"word": p, "start": t, "end": t + d})
+            t += d
+    return out
+
+
+def _sese_esit_dagit(text, audio_path):
+    """Hicbir zamanlama gelmezse: kelimeleri ses suresine esit boler (son care)."""
+    from moviepy import AudioFileClip
+    with AudioFileClip(audio_path) as a:
+        dur = a.duration
+    parcalar = text.split()
+    n = max(1, len(parcalar))
+    return [{"word": p, "start": dur * i / n, "end": dur * (i + 1) / n}
+            for i, p in enumerate(parcalar)]
+
+
+def kelime_gruplari(words, n):
+    """Kelimeleri n'li gruplara boler (ekranda 2-3 kelime)."""
     gruplar = []
-    for i in range(0, len(kelimeler), grup_boyutu):
-        parca = kelimeler[i:i + grup_boyutu]
-        metin = " ".join(k["kelime"] for k in parca)
-        baslangic = parca[0]["baslangic"]
-        gruplar.append({"metin": metin, "baslangic": baslangic})
-
-    # Boşluk kalmasın diye her grup sonrakine kadar ekranda kalır
-    for i, g in enumerate(gruplar):
-        if i < len(gruplar) - 1:
-            g["sure"] = gruplar[i + 1]["baslangic"] - g["baslangic"]
-        else:
-            g["sure"] = max(0.5, toplam_sure - g["baslangic"])
-
+    for i in range(0, len(words), n):
+        parca = words[i:i + n]
+        gruplar.append({
+            "text":  " ".join(w["word"] for w in parca).upper(),
+            "start": parca[0]["start"],
+            "end":   parca[-1]["end"],
+        })
     return gruplar
 
 
-def dikey_yap(clip):
-    """Videoyu 1080x1920 (dikey) olacak şekilde ölçekleyip ortadan kırpar."""
-    oran = max(HEDEF_GENISLIK / clip.w, HEDEF_YUKSEKLIK / clip.h)
-    clip = clip.resized((int(clip.w * oran), int(clip.h * oran)))
-    x1 = (clip.w - HEDEF_GENISLIK) / 2
-    y1 = (clip.h - HEDEF_YUKSEKLIK) / 2
-    return clip.cropped(x1=x1, y1=y1, width=HEDEF_GENISLIK, height=HEDEF_YUKSEKLIK)
-
-
-def _uygun_font():
-    """Kullanılabilir KALIN bir font bulur (Windows / Mac / Linux uyumlu)."""
-    for a in [FONT_PATH,
-              "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-              "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-              "/System/Library/Fonts/Supplemental/Arial Bold.ttf"]:
-        if a and os.path.exists(a):
-            return a
-    return FONT_PATH
-
-
-def _metinden_gruplar(senaryo, grup_boyutu, sure):
-    """Kelime zamanlaması gelmezse: senaryoyu kelime gruplarına bölüp süreyi eşit dağıtır."""
-    kelimeler = senaryo.split()
-    gruplar = []
-    for i in range(0, len(kelimeler), grup_boyutu):
-        gruplar.append({"metin": " ".join(kelimeler[i:i + grup_boyutu])})
-    if not gruplar:
-        return []
-    pay = sure / len(gruplar)
-    for j, g in enumerate(gruplar):
-        g["baslangic"] = j * pay
-        g["sure"] = pay
-    return gruplar
-
-
-def altyazi_klip(metin, baslangic, sure):
-    """Tek bir altyazı parçasını (sarı, kalın, kenarlıklı) oluşturur."""
-    kutu_h = int(HEDEF_YUKSEKLIK * 0.22)
-    txt = TextClip(
-        font=_uygun_font(),
-        text=metin,
-        font_size=YAZI_BOYUTU,
-        color=YAZI_RENGI,
-        stroke_color=KENARLIK_RENGI,
-        stroke_width=KENARLIK_KALINLIGI,
-        method="caption",
-        size=(int(HEDEF_GENISLIK * 0.9), kutu_h),
-        text_align="center",
-    )
-    # Altyazı kutusunu alt tarafa yerleştir (yazının ortası ALTYAZI_DIKEY hizasına gelsin)
-    ust = int(HEDEF_YUKSEKLIK * ALTYAZI_DIKEY - kutu_h / 2)
-    return (
-        txt.with_start(baslangic)
-           .with_duration(sure)
-           .with_position(("center", ust))
-    )
-
-
-def uret_arka_plan(sure):
-    """
-    Stok video YOKSA: karanlık, mavimsi, içinde yavaşça gezen bir ışık/sis olan
-    atmosferik arka planı SIFIRDAN üretir. Hiçbir dosya indirmen gerekmez.
-    Hız için düşük çözünürlükte üretilip 1080x1920'ye büyütülür.
-    """
-    kW, kH = 540, 960
-    yy = np.linspace(0, 1, kH)[:, None]
-    xx = np.linspace(0, 1, kW)[None, :]
-    taban = 0.04 + 0.10 * yy   # üstten alta hafif açılan koyu zemin
-
-    def kare(t):
-        # yavaşça gezen yumuşak ışık merkezi (gizemli "sis" hissi)
-        cx = 0.5 + 0.30 * np.sin(t * 0.18)
-        cy = 0.45 + 0.30 * np.cos(t * 0.13)
-        d2 = (xx - cx) ** 2 + (yy - cy) ** 2
-        glow = np.exp(-d2 / 0.05) * 0.22
-        v = np.clip(taban + glow, 0, 1)
-        rgb = np.empty((kH, kW, 3), dtype="uint8")
-        rgb[..., 0] = (v * 55).astype("uint8")     # R
-        rgb[..., 1] = (v * 65).astype("uint8")     # G
-        rgb[..., 2] = (v * 110).astype("uint8")    # B (soğuk, karanlık mavi)
-        return rgb
-
-    return (
-        VideoClip(kare, duration=sure)
-        .with_fps(30)
-        .resized((HEDEF_GENISLIK, HEDEF_YUKSEKLIK))
-    )
-
-
-_TARAYICI_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
+# =========================================================
+#  4) KONUYA GORE OTOMATIK ARKA PLAN INDIRME
+#     Pixabay VIDEO -> Pexels VIDEO -> Pixabay FOTO -> Pexels FOTO -> Openverse FOTO
+# =========================================================
+def _http_get(url, headers=None, params=None, stream=False, timeout=40):
+    import requests
+    h = {"User-Agent": USER_AGENT}
+    if headers:
+        h.update(headers)
+    return requests.get(url, headers=h, params=params, stream=stream, timeout=timeout)
 
 
 def _dosya_indir(url, hedef):
-    """Görseli tarayıcı kimliğiyle indirir (bazı siteler UA'sız isteği 403 ile reddeder)."""
-    req = urllib.request.Request(url, headers={"User-Agent": _TARAYICI_UA})
-    with urllib.request.urlopen(req, timeout=30) as r, open(hedef, "wb") as f:
-        shutil.copyfileobj(r, f)
-
-
-KULLANILAN_DOSYA = "kullanilan_gorseller.txt"   # geçmiş videolarda kullanılan görsellerin hafızası
-
-
-def _kullanilanlari_yukle():
-    s = set()
-    if os.path.exists(KULLANILAN_DOSYA):
-        try:
-            with open(KULLANILAN_DOSYA, encoding="utf-8") as f:
-                for satir in f:
-                    satir = satir.strip()
-                    if satir:
-                        s.add(satir)
-        except Exception:
-            pass
-    return s
-
-
-def _kullanilanlari_kaydet(kullanilmis):
     try:
-        with open(KULLANILAN_DOSYA, "w", encoding="utf-8") as f:
-            for k in sorted(kullanilmis):
-                f.write(k + "\n")
+        r = _http_get(url, stream=True)
+        if r.status_code != 200:
+            return False
+        beklenen = int(r.headers.get("Content-Length", 0) or 0)   # sunucunun soyledigi boyut
+        with open(hedef, "wb") as f:
+            for parca in r.iter_content(chunk_size=1 << 16):
+                if parca:
+                    f.write(parca)
+        boyut = os.path.getsize(hedef)
+        if boyut < 2048:
+            return False
+        if beklenen and boyut < beklenen * 0.98:   # dosya YARIM indi -> kullanma (donma yapar)
+            print("    (dosya yarim indi, atlaniyor)")
+            os.remove(hedef)
+            return False
+        return True
     except Exception as e:
-        print(f"   [uyarı] görsel hafızası kaydedilemedi: {e}")
+        print("    (indirme hatasi:", e, ")")
+        if os.path.exists(hedef):
+            os.remove(hedef)
+        return False
 
 
-def _pexels_foto_url(sorgu, kullanilmis):
-    for sayfa in (random.randint(1, 5), 1):
-        try:
-            url = "https://api.pexels.com/v1/search?" + urllib.parse.urlencode(
-                {"query": sorgu, "per_page": 30, "page": sayfa, "orientation": "portrait"})
-            req = urllib.request.Request(url, headers={"Authorization": PEXELS_API_KEY,
-                                                       "User-Agent": _TARAYICI_UA})
-            with urllib.request.urlopen(req, timeout=25) as r:
-                data = json.loads(r.read().decode("utf-8"))
-        except Exception:
-            continue
-        fotolar = data.get("photos", [])
-        if not fotolar:
-            continue
-        random.shuffle(fotolar)
-        for foto in fotolar:
-            anahtar = f"pex:{foto.get('id')}"
-            if anahtar in kullanilmis:
-                continue
-            src = foto.get("src", {})
-            u = src.get("portrait") or src.get("large2x") or src.get("original")
+def _pixabay_video(q):
+    if not PIXABAY_API_KEY or PIXABAY_API_KEY.startswith("BURAYA"):
+        return None
+    try:
+        r = _http_get("https://pixabay.com/api/videos/", params={
+            "key": PIXABAY_API_KEY, "q": q, "per_page": 80, "safesearch": "true"})
+        hits = _temiz_hits(r.json().get("hits", []), q)   # sorguya en yakin, alakasiz ATILDI
+        if hits:
+            v = random.choice(hits).get("videos", {})
+            for boyut in ("large", "medium", "small", "tiny"):
+                url = v.get(boyut, {}).get("url")
+                if url:
+                    return url
+    except Exception as e:
+        print("    (pixabay video hatasi:", e, ")")
+    return None
+
+
+def _pexels_video(q):
+    if not PEXELS_API_KEY:
+        return None
+    try:
+        r = _http_get("https://api.pexels.com/videos/search",
+                      headers={"Authorization": PEXELS_API_KEY},
+                      params={"query": q, "orientation": "portrait", "per_page": 6})
+        vids = r.json().get("videos", [])
+        if vids:
+            files = random.choice(vids[:5]).get("video_files", [])
+            dikey = [f for f in files if f.get("height", 0) >= f.get("width", 0)] or files
+            dikey.sort(key=lambda f: f.get("width", 0))
+            for f in dikey:
+                if f.get("link"):
+                    return f["link"]
+    except Exception as e:
+        print("    (pexels video hatasi:", e, ")")
+    return None
+
+
+def _pixabay_foto(q):
+    if not PIXABAY_API_KEY or PIXABAY_API_KEY.startswith("BURAYA"):
+        return None
+    try:
+        r = _http_get("https://pixabay.com/api/", params={
+            "key": PIXABAY_API_KEY, "q": q, "image_type": "photo",
+            "orientation": "vertical", "safesearch": "true", "per_page": 80, "order": "popular"})
+        hits = _temiz_hits(r.json().get("hits", []), q)   # sorguya en yakin, alakasiz ATILDI
+        if hits:
+            s = random.choice(hits)
+            return s.get("largeImageURL") or s.get("webformatURL")
+    except Exception as e:
+        print("    (pixabay foto hatasi:", e, ")")
+    return None
+
+
+def _pexels_foto(q):
+    if not PEXELS_API_KEY:
+        return None
+    try:
+        r = _http_get("https://api.pexels.com/v1/search",
+                      headers={"Authorization": PEXELS_API_KEY},
+                      params={"query": q, "orientation": "portrait", "per_page": 6})
+        foto = r.json().get("photos", [])
+        if foto:
+            src = random.choice(foto[:5]).get("src", {})
+            return src.get("portrait") or src.get("large2x") or src.get("large")
+    except Exception as e:
+        print("    (pexels foto hatasi:", e, ")")
+    return None
+
+
+def _openverse_foto(q):
+    """Anahtar GEREKMEZ - telifsiz (CC0/PDM) yedek foto kaynagi."""
+    try:
+        r = _http_get("https://api.openverse.org/v1/images/", params={
+            "q": q, "license": "cc0,pdm", "page_size": 20, "mature": "false"})
+        for s in r.json().get("results", []):
+            blob = ((s.get("title") or "") + " " +
+                    " ".join((t.get("name") or "") for t in (s.get("tags") or []))).lower()
+            if _yasak_mi(blob):
+                continue                      # cicek/bocek/alakasiz -> atla (yedek kaynak da filtreli)
+            u = s.get("url") or s.get("thumbnail")
             if u:
-                kullanilmis.add(anahtar)
                 return u
+    except Exception as e:
+        print("    (openverse hatasi:", e, ")")
     return None
 
 
-def _pixabay_foto_url(sorgu, kullanilmis):
-    # Rastgele DERİN sayfa + karıştır + daha önce KULLANILMAMIŞ görsel seç
-    for sayfa in (random.randint(1, 10), random.randint(1, 4), 1):
+# --- KONU FILTRESI (GIZEM/KARANLIK): nese/gunduz/cicek gibi ALAKASIZ stok girmesin ---
+_YASAK_ETIKET = (
+    "flower", "floral", "blossom", "insect", "bug", "butterfly", "bee", "dragonfly",
+    "garden", "sunny", "sunshine", "sunflower", "meadow", "spring", "summer", "beach", "tropical",
+    "wedding", "baby", "kids", "child", "smiling", "happy", "party", "food", "fruit", "cake",
+    "business", "office", "yoga", "fitness", "sport", "colorful", "rainbow", "cute", "puppy", "kitten",
+)
+# --- AI GORSEL STILI (Pollinations ucretsiz AI -> videonun konusunu BIREBIR cizer, garantili konuya ozgu) ---
+_AI_STIL  = "dark mysterious, eerie, cinematic, moody dramatic lighting, realistic, highly detailed, suspenseful atmosphere"
+_AI_MODEL = "flux"
+# Aramaya eklenecek KANALA OZGU atmosfer (Pixabay STOK yedeginde siralamayi konuya yaklastirir)
+_ATMOSFER = "dark mysterious eerie cinematic"
+_TEMA_KELIMELER = ("dark", "night", "fog", "mist", "shadow", "abandoned", "forest", "storm", "snow",
+                   "mountain", "ocean", "cave", "old", "ruins", "graveyard", "document", "road", "eerie",
+                   "mysterious", "winter", "rain", "cliff", "wreck")
+
+
+def _yasak_mi(tags):
+    t = (tags or "").lower()
+    return any(y in t for y in _YASAK_ETIKET)
+
+
+def _atmosfer_ekle(q):
+    """Her aramaya kanalin temasini ekle -> alakasiz (cicek/bocek/gunduz doga) gorsel gelmesin."""
+    ql = (q or "").lower()
+    if any(w in ql for w in _TEMA_KELIMELER):
+        return q + " cinematic"               # zaten tema var -> hafif pekistir
+    return q + " " + _ATMOSFER                  # nötr sorgu -> tam tema atmosferi ekle
+
+
+def _temiz_hits(hits, q=""):
+    """Yasak sonuclari at; ONCE bu sahnenin SORGUSUYLA eslesenleri (adam ne anlatiyorsa o),
+    sonra kanal temasini one al -> gorsel o an soylenene birebir yakinsar."""
+    temiz = [h for h in hits if not _yasak_mi(h.get("tags", ""))]
+    if not temiz:
+        temiz = hits                            # hepsi elendiyse mecbur orijinali kullan
+    # 1) SORGUNUN kendi (atmosfer disi) kelimeleriyle eslesenler = en alakali
+    qk = [w for w in re.findall(r"[a-z]{4,}", (q or "").lower()) if w not in _ATMOSFER]
+    tam = [h for h in temiz if any(w in (h.get("tags", "") or "").lower() for w in qk)] if qk else []
+    if len(tam) >= 2:
+        return tam[:25]
+    # 2) yoksa kanal temasiyla eslesenler
+    uygun = [h for h in temiz if any(w in (h.get("tags", "") or "").lower() for w in _TEMA_KELIMELER)]
+    if len(uygun) >= 3:
+        return uygun[:25]
+    return temiz[:25]                           # yoksa yasaksiz ust dilim
+
+
+_KULLANILAN_MEDYA = set()   # bu kosuda + gecmiste kullanilan medya url'leri (tekrar onleme)
+
+
+def _tekrarsiz_url(fn, q):
+    """Kaynaktan daha once KULLANILMAMIS bir url bulmaya calisir (birkac deneme)."""
+    son = None
+    for _ in range(8):
+        u = fn(q)
+        if not u:
+            return son
+        son = u
+        if u not in _KULLANILAN_MEDYA:
+            return u
+    return son   # hepsi kullanilmis -> son bulunani don
+
+
+def _ai_gorsel(query, hedef):
+    """Pollinations (ucretsiz AI) ile sorguyu BIREBIR cizen dikey 1080x1920 gorsel uretir.
+    Konuya %100 ozel -> alakasiz stok (cicek/bocek/sacma manzara) IMKANSIZ. Basarisizsa None."""
+    import urllib.parse
+    prompt = f"{query}, {_AI_STIL}"
+    for deneme in range(2):                       # 2 deneme (ara sira gec/yogun olabilir)
+        seed = random.randint(1, 999999)
+        url = ("https://image.pollinations.ai/prompt/" + urllib.parse.quote(prompt) +
+               f"?width=1080&height=1920&nologo=true&seed={seed}&model={_AI_MODEL}")
         try:
-            url = "https://pixabay.com/api/?" + urllib.parse.urlencode(
-                {"key": PIXABAY_API_KEY, "q": sorgu, "image_type": "photo",
-                 "orientation": "vertical", "per_page": 30, "page": sayfa, "safesearch": "true"})
-            req = urllib.request.Request(url, headers={"User-Agent": _TARAYICI_UA})
-            with urllib.request.urlopen(req, timeout=25) as r:
-                data = json.loads(r.read().decode("utf-8"))
-        except Exception:
-            continue
-        hits = data.get("hits", [])
-        if not hits:
-            continue
-        random.shuffle(hits)
-        for h in hits:
-            anahtar = f"px:{h.get('id')}"
-            if anahtar in kullanilmis:
-                continue
-            u = h.get("largeImageURL") or h.get("webformatURL")
-            if u:
-                kullanilmis.add(anahtar)
-                return u
+            r = _http_get(url, timeout=90)
+            ct = r.headers.get("Content-Type", "")
+            if r.status_code == 200 and ct.startswith("image"):
+                with open(hedef, "wb") as f:
+                    f.write(r.content)
+                if os.path.getsize(hedef) > 12000:   # gecerli gorsel
+                    return hedef
+                os.remove(hedef)
+        except Exception as e:
+            print("    (ai gorsel denemesi basarisiz:", e, ")")
     return None
 
 
-def _openverse_ara(sorgu, kullanilmis):
-    for sayfa in (random.randint(1, 5), random.randint(1, 2), 1):
+def arka_plan_indir(sorgular):
+    """
+    Her sorgu icin ONCE AI ile konuyu BIREBIR cizer (Pollinations); olmazsa STOK'a duser
+    (Pixabay video/foto -> filtreli). Konuya ozgu gorsel GARANTI. [(yol, tur), ...] dondurur.
+    """
+    global _KULLANILAN_MEDYA
+    umf = os.path.join(BASE_DIR, "kullanilan_gorseller.txt")
+    _KULLANILAN_MEDYA = set()
+    if os.path.exists(umf):
         try:
-            url = "https://api.openverse.org/v1/images/?" + urllib.parse.urlencode(
-                {"q": sorgu, "license": "cc0,pdm,by", "page_size": 20, "page": sayfa, "mature": "false"})
-            req = urllib.request.Request(url, headers={"User-Agent": _TARAYICI_UA})
-            with urllib.request.urlopen(req, timeout=25) as r:
-                data = json.loads(r.read().decode("utf-8"))
-        except Exception:
-            continue
-        res = data.get("results", [])
-        if not res:
-            continue
-        random.shuffle(res)
-        for it in res:
-            u = it.get("url")
-            anahtar = f"ov:{u}"
-            if not u or anahtar in kullanilmis:
+            with open(umf, "r", encoding="utf-8") as f:
+                _KULLANILAN_MEDYA = {ln.strip() for ln in f if ln.strip()}
+        except OSError:
+            pass
+
+    os.makedirs(MEDYA_KLASORU, exist_ok=True)
+    for eski in os.listdir(MEDYA_KLASORU):
+        try:
+            os.remove(os.path.join(MEDYA_KLASORU, eski))
+        except OSError:
+            pass
+
+    medya = []
+    for i, q in enumerate(sorgular):
+        qa = _atmosfer_ekle(q)
+        print(f"  Gorsel [{i+1}/{len(sorgular)}]: '{qa}'")
+        # 1) ONCE gercek STOK VIDEO (profesyonel HAREKETLI goruntu; konuya filtreli) -> slayt degil
+        url = _tekrarsiz_url(_pixabay_video, qa) or _tekrarsiz_url(_pexels_video, qa)
+        tur = "video"
+        if not url:
+            # 2) filtreli STOK FOTO
+            url = (_tekrarsiz_url(_pixabay_foto, qa) or _tekrarsiz_url(_pexels_foto, qa)
+                   or _tekrarsiz_url(_openverse_foto, qa))
+            tur = "foto"
+        if url:
+            ext = "mp4" if tur == "video" else "jpg"
+            hedef = os.path.join(MEDYA_KLASORU, f"m_{i:02d}.{ext}")
+            if _dosya_indir(url, hedef):
+                medya.append((hedef, tur))
+                _KULLANILAN_MEDYA.add(url)
+                try:
+                    with open(umf, "a", encoding="utf-8") as f:
+                        f.write(url + "\n")
+                except OSError:
+                    pass
+                print(f"    -> STOK {tur.upper()} indirildi (konuya uygun)")
                 continue
-            kullanilmis.add(anahtar)
-            return {"url": u, "creator": it.get("creator") or "Unknown",
-                    "license": (it.get("license") or "").upper()}
-    return None
+        # 3) SON CARE: konuya uygun stok YOKSA AI gorsel (nadir bosluk doldurma)
+        hedef_ai = os.path.join(MEDYA_KLASORU, f"m_{i:02d}.jpg")
+        if _ai_gorsel(q, hedef_ai):
+            medya.append((hedef_ai, "foto"))
+            print("    -> AI gorsel (uygun stok yok, son care)")
+            continue
+        print("    -> bulunamadi, atlaniyor")
+
+    print(f"  Toplam {len(medya)} arka plan medyasi hazir.")
+    return medya
 
 
-def _yapayzeka_gorsel_indir(sorgu, hedef):
-    """Pollinations (ücretsiz+anahtarsız) ile konuya özel, DİKEY, benzersiz görsel üretir."""
-    stil = ("dark cinematic photograph, eerie atmosphere, moody dramatic lighting, "
-            "photorealistic, sharp focus, ultra detailed, 8k, no text, no watermark, no caption")
-    prompt = f"{sorgu}, {stil}"
-    parametreler = urllib.parse.urlencode(
-        {"width": HEDEF_GENISLIK, "height": HEDEF_YUKSEKLIK,
-         "seed": random.randint(1, 10_000_000), "nologo": "true",
-         "enhance": "true", "model": AI_MODEL})
-    url = ("https://image.pollinations.ai/prompt/"
-           + urllib.parse.quote(prompt) + "?" + parametreler)
-    req = urllib.request.Request(url, headers={"User-Agent": _TARAYICI_UA})
-    with urllib.request.urlopen(req, timeout=150) as r, open(hedef, "wb") as f:
-        shutil.copyfileobj(r, f)
+# =========================================================
+#  5) MoviePy ile video kurgusu + altyazi
+# =========================================================
+def _fit_dikey(clip):
+    """Klibi 1080x1920 cerceveyi tamamen kaplayacak sekilde buyutup ortadan kirpar."""
+    hedef = W / H
+    oran = clip.w / clip.h
+    if oran > hedef:
+        clip = clip.resized(height=H).cropped(x_center=clip.w / 2, width=W)
+    else:
+        clip = clip.resized(width=W).cropped(y_center=clip.h / 2, height=H)
+    return clip
 
 
-def _stok_foto(sorgu, kullanilmis):
-    """AI yedeği: Pixabay -> Pexels -> Openverse. (url, kredi) döner."""
-    pixabay_var = bool(PIXABAY_API_KEY.strip()) and "BURAYA_" not in PIXABAY_API_KEY
-    pexels_var = bool(PEXELS_API_KEY.strip()) and "BURAYA_" not in PEXELS_API_KEY
-    if pixabay_var:
-        u = _pixabay_foto_url(sorgu, kullanilmis)
-        if u:
-            return u, "Images via Pixabay (pixabay.com)"
-    if pexels_var:
-        u = _pexels_foto_url(sorgu, kullanilmis)
-        if u:
-            return u, "Photos via Pexels (pexels.com)"
-    bilgi = _openverse_ara(sorgu, kullanilmis)
-    if bilgi and bilgi.get("url"):
-        return bilgi["url"], f"{bilgi['creator']} ({bilgi['license']})"
-    return None, None
+def _video_klip(path, sure):
+    from moviepy import VideoFileClip, concatenate_videoclips
+    v = VideoFileClip(path).without_audio()
+    if v.duration < sure:                       # kisa ise dongule
+        n = int(sure // v.duration) + 1
+        v = concatenate_videoclips([v] * n).subclipped(0, sure)
+    else:                                       # uzun ise rastgele bir yerinden kes
+        s = random.uniform(0, v.duration - sure)
+        v = v.subclipped(s, s + sure)
+    return _fit_dikey(v).with_duration(sure)
 
 
-def gorselleri_indir(sorgular, klasor="gecici_gorseller"):
-    if os.path.isdir(klasor):
-        shutil.rmtree(klasor, ignore_errors=True)
-    os.makedirs(klasor, exist_ok=True)
-
-    ai_mod = GORSEL_KAYNAGI.strip().lower() in ("yapayzeka", "ai", "pollinations")
-    print(f"   (Görsel kaynağı: {'Yapay Zeka - Pollinations' if ai_mod else 'Stok'})")
-
-    kullanilmis = _kullanilanlari_yukle()   # stok yedeğinde tekrar önlemek için
-    yollar, krediler = [], []
-    for i, sorgu in enumerate(sorgular):
-        hedef = os.path.join(klasor, f"gorsel_{i:02d}.jpg")
-        basarili = False
-        if ai_mod:   # 1) önce yapay zeka
-            try:
-                _yapayzeka_gorsel_indir(sorgu, hedef)
-                if os.path.exists(hedef) and os.path.getsize(hedef) > 5000:
-                    yollar.append(hedef)
-                    krediler.append("AI images (pollinations.ai)")
-                    print(f"   [AI görsel] {sorgu[:60]}")
-                    basarili = True
-            except Exception as e:
-                print(f"   [AI görsel başarısız] -> {e}")
-        if not basarili:   # 2) AI kapalı/başarısız -> stok yedeği
-            try:
-                u, kredi = _stok_foto(sorgu, kullanilmis)
-                if u:
-                    _dosya_indir(u, hedef)
-                    yollar.append(hedef)
-                    if kredi:
-                        krediler.append(kredi)
-                    print(f"   [stok görsel] {sorgu[:60]}")
-            except Exception as e:
-                print(f"   [görsel atlandı] -> {e}")
-
-    _kullanilanlari_kaydet(kullanilmis)
-    return yollar, krediler
+def _foto_klip(path, sure):
+    from moviepy import ImageClip, CompositeVideoClip
+    base = _fit_dikey(ImageClip(path).with_duration(sure))
+    try:
+        # ONEMLI: cerceveden BUYUK basla (H*1.35) -> Ken Burns zoom marji olur ve klip boyutu
+        # crossfade bindirmesinde ASLA cerceve altina/0'a dusmez ("height and width must be > 0" cozuldu).
+        buyuk = base.resized(height=int(H * 1.35))
+        c = buyuk.resized(lambda t: 1.0 + 0.10 * max(0.0, min(1.0, t / max(sure, 0.1)))).with_position("center")
+        return CompositeVideoClip([c], size=(W, H)).with_duration(sure)
+    except Exception:
+        return base
 
 
-def slayt_yap(gorseller, toplam_sure):
-    """Fotoğrafları, yavaşça yakınlaşan (Ken Burns) sinematik bir slayta çevirir."""
-    n = len(gorseller)
-    pay = toplam_sure / n
+def _yedek_arka_plan(sure):
+    """Internetten hic medya gelmezse: yerel klasordeki video, o da yoksa duz koyu ekran."""
+    from moviepy import VideoFileClip, concatenate_videoclips, ColorClip
+    if os.path.isdir(YEDEK_VIDEO_KLASORU):
+        vids = [os.path.join(YEDEK_VIDEO_KLASORU, f) for f in os.listdir(YEDEK_VIDEO_KLASORU)
+                if f.lower().endswith((".mp4", ".mov", ".mkv", ".webm", ".avi"))]
+        if vids:
+            print("  (internet medyasi yok -> yerel yedek video kullaniliyor)")
+            return _video_klip(random.choice(vids), sure)
+    print("  (hic gorsel yok -> duz koyu arka plan kullaniliyor)")
+    return ColorClip(size=(W, H), color=(15, 15, 20)).with_duration(sure)
+
+
+def _arka_plan_montaj(medya, sure):
+    from moviepy import concatenate_videoclips, vfx
+    if not medya:
+        return _yedek_arka_plan(sure)
+
+    medya = medya[:8]                           # cok fazla olmasin
+    n = len(medya)
+    gecis = 0.5                                 # sahneler arasi yumusak crossfade (sinematik)
+
+    if n == 1:
+        path, tur = medya[0]
+        return _video_klip(path, sure) if tur == "video" else _foto_klip(path, sure)
+
+    her = max(1.8, (sure + (n - 1) * gecis) / n)   # crossfade cakismasini hesaba kat
+
+    sahneler = []
+    for path, tur in medya:
+        try:
+            sahneler.append(_video_klip(path, her) if tur == "video" else _foto_klip(path, her))
+        except Exception as e:
+            print("  (bir medya atlandi:", e, ")")
+
+    if not sahneler:
+        return _yedek_arka_plan(sure)
+    if len(sahneler) == 1:
+        return sahneler[0].with_duration(sure)
+
+    try:
+        # ilk sahne olduğu gibi, sonrakiler yumusak crossfade ile girsin
+        sahneler = [sahneler[0]] + [s.with_effects([vfx.CrossFadeIn(gecis)]) for s in sahneler[1:]]
+        bg = concatenate_videoclips(sahneler, method="compose", padding=-gecis)
+    except Exception as e:
+        print("  (crossfade kurulamadi, duz birlestirme:", e, ")")
+        bg = concatenate_videoclips(sahneler, method="compose")
+
+    # tam sese esitle: kisa ise dongule, uzun ise kes
+    if bg.duration < sure:
+        tekrar = int(sure // bg.duration) + 1
+        bg = concatenate_videoclips([bg] * tekrar, method="compose")
+    return bg.subclipped(0, sure)
+
+
+def _altyazi_klipleri(words, font_path):
+    from moviepy import TextClip
+    kutu_g = int(W * 0.9)
+    kutu_y = 420                                # SABIT yukseklik -> harf/kenarlik KIRPILMAZ (yarim cikma sorunu cozuldu)
+    x0 = (W - kutu_g) // 2                       # yatayda ortala
+    y0 = int(H * SUBTITLE_Y - kutu_y / 2)        # kutuyu SUBTITLE_Y oranina gore dikeyde ortala
     klipler = []
-    for i, yol in enumerate(gorseller):
-        d = pay if i < n - 1 else (toplam_sure - pay * (n - 1))
-        img = dikey_yap(ImageClip(yol)).with_duration(d)
-        # zamanla hafif yakınlaş (d'yi default argümanla sabitliyoruz - closure hatası olmasın)
-        img = img.resized(lambda t, d=d: 1 + 0.06 * (t / d))
-        img = img.with_position(("center", "center"))
-        seg = CompositeVideoClip(
-            [img], size=(HEDEF_GENISLIK, HEDEF_YUKSEKLIK)
-        ).with_duration(d)
-        klipler.append(seg)
-    return concatenate_videoclips(klipler)
+    for g in kelime_gruplari(words, WORDS_PER_CHUNK):
+        sure = max(0.15, g["end"] - g["start"])
+        # HOOK VURGUSU: ilk 2.5 sn (hook) daha BUYUK punto -> ilk 2 saniye guclu dikkat ceker (profesyonel)
+        fs = int(FONT_SIZE * 1.15) if g["start"] < 2.5 else FONT_SIZE
+        # Sabit kutu + yazi kutunun icinde tam ortalanir -> ust/alt bol bosluk, hicbir harf kesilmez
+        ortak = dict(font=font_path, text=g["text"], font_size=fs, method="caption",
+                     size=(kutu_g, kutu_y), text_align="center",
+                     horizontal_align="center", vertical_align="center")
+
+        # Golge (derinlik + okunurluk)
+        golge = (TextClip(color="black", **ortak)
+                 .with_start(g["start"]).with_duration(sure)
+                 .with_position((x0 + 5, y0 + 5)).with_opacity(0.45))
+        # Ana sari yazi + kalin siyah kenarlik
+        ana = (TextClip(color=TEXT_COLOR, stroke_color=STROKE_COLOR, stroke_width=STROKE_WIDTH, **ortak)
+               .with_start(g["start"]).with_duration(sure)
+               .with_position((x0, y0)))
+
+        klipler.append(golge)
+        klipler.append(ana)
+    return klipler
 
 
-def video_hazirla(ses_dosyasi, kelimeler, senaryo, gorseller=None):
-    """Arka planı hazırla (görsel varsa slayt, yoksa stok video, o da yoksa karanlık fon)."""
-    ses_klip = AudioFileClip(ses_dosyasi)
-    sure = ses_klip.duration
-    print(f"[Kurgu] Ses süresi: {sure:.1f} sn")
+def video_olustur(words, medya, out_path):
+    from moviepy import AudioFileClip, CompositeVideoClip
 
-    videolar = []
-    for uzanti in ("*.mp4", "*.mov", "*.mkv", "*.webm", "*.avi"):
-        videolar += glob.glob(os.path.join(STOK_VIDEO_KLASORU, uzanti))
+    # Font kontrolu (gomulu Anton yoksa -> Windows -> Linux/bulut fontlarina gec)
+    font_path = FONT_PATH
+    if not os.path.exists(font_path):
+        for alt in [
+            r"C:\Windows\Fonts\impact.ttf", r"C:\Windows\Fonts\ariblk.ttf",
+            r"C:\Windows\Fonts\arialbd.ttf", r"C:\Windows\Fonts\arial.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        ]:
+            if os.path.exists(alt):
+                font_path = alt
+                break
 
-    if gorseller:
-        print(f"[Kurgu] {len(gorseller)} fotoğraf ile slayt gösterisi yapılıyor...")
-        bg = slayt_yap(gorseller, sure)
-    elif videolar:
-        secilen = random.choice(videolar)
-        print(f"[Kurgu] Arka plan (stok): {os.path.basename(secilen)}")
-        bg = VideoFileClip(secilen).without_audio()
-        bg = dikey_yap(bg)
-        if bg.duration < sure:
-            tekrar = int(sure // bg.duration) + 1
-            bg = concatenate_videoclips([bg] * tekrar)
-        bg = bg.subclipped(0, sure)
-    else:
-        print("[Kurgu] Görsel/stok yok -> karanlik atmosferik arka plan uretiliyor...")
-        bg = uret_arka_plan(sure)
+    audio = AudioFileClip(AUDIO_FILE)
+    dur = audio.duration
 
-    if kelimeler:
-        gruplar = kelime_gruplari(kelimeler, HER_EKRANDA_KELIME, sure)
-    else:
-        print("[Kurgu] Kelime zamanlaması yok -> altyazılar metinden dağıtılıyor")
-        gruplar = _metinden_gruplar(senaryo, HER_EKRANDA_KELIME, sure)
-    altyazilar = [altyazi_klip(g["metin"], g["baslangic"], g["sure"]) for g in gruplar]
-    print(f"[Kurgu] {len(altyazilar)} altyazı parçası oluşturuldu")
+    bg = _arka_plan_montaj(medya, dur)
+    altyazilar = _altyazi_klipleri(words, font_path)
 
-    final = CompositeVideoClip([bg, *altyazilar]).with_audio(ses_klip)
-    final = final.with_duration(sure)
+    final = CompositeVideoClip([bg, *altyazilar], size=(W, H))
+    final = final.with_audio(audio).with_duration(dur)
 
-    print("[Kurgu] Video işleniyor... (birkaç dakika sürebilir)")
     final.write_videofile(
-        CIKTI_VIDEO,
-        fps=30,
-        codec="libx264",
-        audio_codec="aac",
-        threads=4,
-        preset="medium",
+        out_path, fps=30, codec="libx264", audio_codec="aac",
+        threads=4, preset="medium",   # ilerleme % cubugu terminalde gorunsun diye logger acik
     )
-    print(f"[Kurgu] Hazır: {CIKTI_VIDEO}")
+
+    audio.close()
+    bg.close()
+    final.close()
 
 
-# ==================================================================
-#  ADIM 4: YOUTUBE'A YÜKLEME (YouTube Data API v3)
-# ==================================================================
+# =========================================================
+#  6) YouTube Data API v3 ile yukle (Private)
+# =========================================================
+def youtube_yukle(dosya, baslik, aciklama, etiket_listesi):
+    from google_auth_oauthlib.flow import InstalledAppFlow
+    from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaFileUpload
 
-# Niş için yüksek trafikli temel etiketler (Gemini'nin ürettikleriyle birleştirilir)
-TEMEL_ETIKETLER = [
-    "shorts", "shortsfeed", "unsolved mystery", "unsolved mysteries",
-    "creepy", "creepy facts", "scary", "mystery", "unexplained",
-    "strange", "paranormal", "true stories", "did you know", "facts",
-    "documentary",
-]
+    SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
 
-
-def etiketleri_hazirla(gemini_etiketleri):
-    """Gemini etiketleri + temel etiketleri birleştirir, tekrarları atar, sınırlar."""
-    birlesik, gorulen = [], set()
-    for t in list(gemini_etiketleri) + TEMEL_ETIKETLER:
-        t = t.strip().lstrip("#")
-        if t and t.lower() not in gorulen:
-            gorulen.add(t.lower())
-            birlesik.append(t)
-    # YouTube toplam etiket uzunluğu ~500 karakter; güvenli tarafta kalalım
-    son, toplam = [], 0
-    for t in birlesik:
-        if toplam + len(t) + 1 > 460:
-            break
-        son.append(t)
-        toplam += len(t) + 1
-    return son[:20]
-
-
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
-
-
-def youtube_servisi():
-    """İlk seferde tarayıcıda bir kez izin verirsin; sonra token.json ile hatırlar."""
     creds = None
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-
+    if os.path.exists(TOKEN_FILE):
+        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            # client_secret dosyasını otomatik bul (adı tam 'client_secret.json' olmasa da)
-            adaylar = (["client_secret.json"]
-                       + glob.glob("client_secret*.json")
-                       + glob.glob("*apps.googleusercontent.com.json"))
-            secret = next((a for a in adaylar if os.path.exists(a)), None)
-            if not secret:
-                raise FileNotFoundError(
-                    "OAuth dosyası bulunamadı! Google'dan indirdiğin JSON dosyasını "
-                    f"şu klasöre koy: {os.getcwd()}\n"
-                    "(Genelde 'İndirilenler' klasöründe, adı client_secret... ile başlar.)"
-                )
-            print(f"[YouTube] OAuth dosyası: {secret}")
-            flow = InstalledAppFlow.from_client_secrets_file(secret, SCOPES)
-            # access_type=offline + prompt=consent -> token.json içine "refresh_token" gelir
-            # (sunucuda tarayıcısız yenileme için ŞART)
+            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET_FILE, SCOPES)
             creds = flow.run_local_server(port=0, access_type="offline", prompt="consent")
-        with open("token.json", "w") as f:
+        with open(TOKEN_FILE, "w", encoding="utf-8") as f:
             f.write(creds.to_json())
 
-    return build("youtube", "v3", credentials=creds)
-
-
-def youtube_yukle(dosya, baslik, aciklama, etiketler):
-    """Videoyu HERKESE AÇIK (public) ve dil/hedef İngilizce olarak yükler."""
-    youtube = youtube_servisi()
-
+    youtube = build("youtube", "v3", credentials=creds)
     body = {
         "snippet": {
-            "title": baslik,
+            "title": baslik[:100],
             "description": aciklama,
-            "tags": etiketler,
-            "categoryId": YOUTUBE_KATEGORI,
+            "tags": etiket_listesi,
+            "categoryId": CATEGORY_ID,
             "defaultLanguage": "en",
             "defaultAudioLanguage": "en",
         },
-        "status": {
-            "privacyStatus": "public",        # HERKESE AÇIK (kontrol etmeden yayınla)
-            "selfDeclaredMadeForKids": False,
-        },
+        "status": {"privacyStatus": PRIVACY, "selfDeclaredMadeForKids": False},
     }
-
     media = MediaFileUpload(dosya, chunksize=-1, resumable=True, mimetype="video/mp4")
     istek = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
 
-    print("[YouTube] Yükleme başladı...")
-    yanit = istek.execute()
-    video_id = yanit.get("id")
-    print(f"[YouTube] Yüklendi (HERKESE AÇIK): https://youtu.be/{video_id}")
-    return video_id
+    print("  YouTube'a yukleniyor...")
+    resp = None
+    while resp is None:
+        status, resp = istek.next_chunk()
+        if status:
+            print(f"    Yukleniyor: %{int(status.progress() * 100)}")
+    print("  Yuklendi! Video ID:", resp["id"])
+    print("  Link:", "https://youtu.be/" + resp["id"])
 
 
-# ==================================================================
-#  ANA AKIŞ
-# ==================================================================
-
+# =========================================================
+#  7) ANA AKIS
+# =========================================================
 def main():
-    if "BURAYA_GEMINI" in GEMINI_API_KEY:
-        print("HATA: GEMINI_API_KEY boş. https://aistudio.google.com/apikey adresinden ücretsiz al.")
-        return
-    if not os.path.exists(_uygun_font()):
-        print(f"HATA: Font bulunamadı: {_uygun_font()}  (FONT_PATH'i düzelt)")
-        return
+    # 1) Metinler + gorsel kelimeleri
+    if MANUAL_MODE:
+        script     = senaryo_metni
+        baslik     = video_basligi
+        aciklama   = video_aciklamasi
+        etiket_lst = etiketler
+        sorgular   = gorsel_sorgulari
+        print("MANUEL MOD: yapistirilan senaryo kullaniliyor.")
+    else:
+        print("[1/5] Gemini ile konu + senaryo + gorsel kelimeleri uretiliyor...")
+        data       = gemini_uret()
+        script     = data["script"]
+        baslik     = data["title"]
+        aciklama   = data["description"]
+        etiket_lst = data.get("tags", [])
+        sorgular   = data.get("visual_queries", []) or etiket_lst
+        print("      Konu   :", data.get("topic"))
+        print("      Baslik :", baslik)
+        print("      Gorsel kelimeleri:", ", ".join(sorgular))
 
-    print("=== 1/4  İçerik üretiliyor (Gemini)...")
-    try:
-        icerik = icerik_uret()
-    except Exception as e:
-        print("\n!!! GEMINI ADIMINDA HATA. Tam mesaj:")
-        print("   ", str(e))
-        print("\nOlası çözümler (sırayla dene):")
-        print("  1) Kütüphaneyi güncelle:  python -m pip install -U google-genai")
-        print('  2) Model adını değiştir:  kodda GEMINI_MODEL = "gemini-2.0-flash" yap')
-        print("  3) Anahtarı yeniden oluştur: https://aistudio.google.com/apikey")
-        return
-    print(f"    Konu   : {icerik['konu']}")
-    print(f"    Başlık : {icerik['baslik']}")
-    print(f"    Etiket : {', '.join(icerik['etiketler'][:8])} ...")
-    print("    --- SENARYO ---")
-    print("    " + icerik["senaryo"].replace("\n", "\n    "))
+    # 2) Seslendirme + kelime zamanlamasi
+    print("[2/5] Seslendiriliyor (edge-tts)...")
+    words = asyncio.run(seslendir_ve_zamanla(script, VOICE, AUDIO_FILE))
+    print(f"      {len(words)} kelime seslendirildi -> {AUDIO_FILE}")
+    if not words:
+        raise RuntimeError("edge-tts kelime zamanlamasi dondurmedi. Senaryo bos olabilir.")
 
-    print("=== 2/4  Seslendirme (edge-tts)...")
-    kelimeler = seslendir(icerik["senaryo"], SES, SES_DOSYASI)
-    print(f"    Ses kaydedildi: {SES_DOSYASI}  ({len(kelimeler)} kelime zamanlandı)")
+    # 3) KONUYA GORE otomatik arka plan indir
+    print("[3/5] Konuya uygun arka plan medyasi indiriliyor (Pixabay/Pexels/Openverse)...")
+    medya = arka_plan_indir(sorgular)
 
-    print("=== 3/4  Görseller indiriliyor + video kurgulanıyor...")
-    gorseller, krediler = gorselleri_indir(icerik.get("gorsel_sorgulari", []))
-    if not gorseller:
-        print("    (Görsel indirilemedi -> karanlık fon kullanılacak)")
-    video_hazirla(SES_DOSYASI, kelimeler, icerik["senaryo"], gorseller)
+    # 4) Video + altyazi
+    print("[4/5] Video kurgulaniyor (MoviePy)... (biraz surebilir)")
+    video_olustur(words, medya, OUTPUT_FILE)
+    print("      Video hazir ->", OUTPUT_FILE)
 
-    print("=== 4/4  YouTube'a yükleniyor (HERKESE AÇIK)...")
-    # SEO: başlığa #Shorts ekle, açıklamaya görsel kredisi, etiketleri güçlendir
-    baslik = icerik["baslik"]
-    if "#short" not in baslik.lower() and len(baslik) <= 88:
-        baslik += " #Shorts"
-    aciklama = icerik["aciklama"]
-    if krediler:
-        aciklama += "\n\nImage credits: " + "; ".join(dict.fromkeys(krediler))
-    etiketler = etiketleri_hazirla(icerik["etiketler"])
-    youtube_yukle(CIKTI_VIDEO, baslik, aciklama, etiketler)
+    # 5) YouTube
+    if UPLOAD_TO_YOUTUBE:
+        print("[5/5] YouTube yukleme...")
+        youtube_yukle(OUTPUT_FILE, baslik, aciklama, etiket_lst)
+    else:
+        print("[5/5] YouTube yukleme KAPALI (UPLOAD_TO_YOUTUBE = False).")
 
-    print("=== Bitti! Video kanalına HERKESE AÇIK olarak yüklendi.")
+    print("\nBITTI - tamamlandi.")
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    import traceback
+    try:
+        main()
+    except Exception as e:
+        print("\nHATA:", type(e).__name__, "-", e)
+        traceback.print_exc()
+        sys.exit(1)   # bu kosu basarisiz gorunur; sonraki zamanlanmis calisma normal calisir
