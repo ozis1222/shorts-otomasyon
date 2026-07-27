@@ -345,12 +345,17 @@ def _pixabay_video(q):
         r = _http_get("https://pixabay.com/api/videos/", params={
             "key": PIXABAY_API_KEY, "q": q, "per_page": 80, "safesearch": "true"})
         hits = _temiz_hits(r.json().get("hits", []), q)   # sorguya en yakin, alakasiz ATILDI
-        if hits:
-            v = random.choice(hits).get("videos", {})
+        adaylar = []
+        for h in hits:
+            v = h.get("videos", {})
             for boyut in ("large", "medium", "small", "tiny"):
                 url = v.get(boyut, {}).get("url")
                 if url:
-                    return url
+                    if url not in _KULLANILAN_MEDYA:   # DAHA ONCE KULLANILDIYSA ALMA (tekrar yok)
+                        adaylar.append(url)
+                    break
+        if adaylar:
+            return random.choice(adaylar)
     except Exception as e:
         print("    (pixabay video hatasi:", e, ")")
     return None
@@ -384,9 +389,10 @@ def _pixabay_foto(q):
             "key": PIXABAY_API_KEY, "q": q, "image_type": "photo",
             "orientation": "vertical", "safesearch": "true", "per_page": 80, "order": "popular"})
         hits = _temiz_hits(r.json().get("hits", []), q)   # sorguya en yakin, alakasiz ATILDI
-        if hits:
-            s = random.choice(hits)
-            return s.get("largeImageURL") or s.get("webformatURL")
+        adaylar = [u for u in ((h.get("largeImageURL") or h.get("webformatURL")) for h in hits)
+                   if u and u not in _KULLANILAN_MEDYA]      # kullanilmislar ELENDI -> tekrar yok
+        if adaylar:
+            return random.choice(adaylar)
     except Exception as e:
         print("    (pixabay foto hatasi:", e, ")")
     return None
@@ -479,8 +485,15 @@ def _temiz_hits(hits, q=""):
     """KONU varsa SADECE o konuyla eslesen stok'u kabul et; yoksa BOS -> caller AI'ya gecer."""
     temiz = [h for h in hits if not _yasak_mi(h.get("tags", ""))]
     if _AKTIF_KONU:
-        esles = [h for h in temiz if any(w in (h.get("tags", "") or "").lower() for w in _AKTIF_KONU)]
-        return esles[:25]
+        # 1) EN SPESIFIK kelime (sorgunun ilki = anlatilan asil nesne) tag'lerde geciyor mu?
+        ana = _AKTIF_KONU[0]
+        tam = [h for h in temiz if ana in (h.get("tags", "") or "").lower()]
+        if tam:
+            return tam[:25]
+        # 2) yoksa EN AZ 2 konu kelimesi tutmali (tek zayif kelimeyle alakasiz gorsel GELMESIN)
+        cok = [h for h in temiz
+               if sum(1 for w in _AKTIF_KONU if w in (h.get("tags", "") or "").lower()) >= 2]
+        return cok[:25]   # o da yoksa BOS -> AI konuyu birebir cizer
     if not temiz:
         temiz = hits
     uygun = [h for h in temiz if any(w in (h.get("tags", "") or "").lower() for w in _TEMA_KELIMELER)]
@@ -491,16 +504,15 @@ _KULLANILAN_MEDYA = set()   # bu kosuda + gecmiste kullanilan medya url'leri (te
 
 
 def _tekrarsiz_url(fn, q):
-    """Kaynaktan daha once KULLANILMAMIS bir url bulmaya calisir (birkac deneme)."""
-    son = None
-    for _ in range(8):
+    """DAHA ONCE KULLANILMIS url ASLA donmez. Hepsi kullanilmissa None -> caller AI'ya gecer.
+    (Eskiden 8 deneme sonunda kullanilmis url donuyordu; ayni klip 3-4 video sonra TEKRAR ediyordu.)"""
+    for _ in range(6):
         u = fn(q)
         if not u:
-            return son
-        son = u
+            return None
         if u not in _KULLANILAN_MEDYA:
             return u
-    return son   # hepsi kullanilmis -> son bulunani don
+    return None   # havuzdaki her sey kullanilmis -> TEKRAR ETME, AI cizsin
 
 
 def _ai_gorsel(query, hedef):
