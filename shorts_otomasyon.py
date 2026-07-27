@@ -572,30 +572,41 @@ def arka_plan_indir(sorgular):
             print("    -> AI (ana konu birebir cizildi)")
             continue
         # SADECE konuya BIREBIR eslesen stok VIDEO (alakasiz manzara/insan gelmez)
+        # 1) KONUYA BIREBIR uygun gercek HAREKETLI KLIP (en profesyonel gorunum)
         url = _tekrarsiz_url(_pixabay_video, qa) or _tekrarsiz_url(_pexels_video, qa)
-        tur = "video"
-        if not url:
-            url = _tekrarsiz_url(_pixabay_foto, qa) or _tekrarsiz_url(_pexels_foto, qa)
-            tur = "foto"
         if url:
-            ext = "mp4" if tur == "video" else "jpg"
-            hedef = os.path.join(MEDYA_KLASORU, f"m_{i:02d}.{ext}")
+            hedef = os.path.join(MEDYA_KLASORU, f"m_{i:02d}.mp4")
             if _dosya_indir(url, hedef):
-                medya.append((hedef, tur))
+                medya.append((hedef, "video"))
                 _KULLANILAN_MEDYA.add(url)
                 try:
                     with open(umf, "a", encoding="utf-8") as f:
                         f.write(url + "\n")
                 except OSError:
                     pass
-                print(f"    -> STOK {tur.upper()} (konuya BIREBIR uygun)")
+                print("    -> KLIP (konuya BIREBIR uygun hareketli video)")
                 continue
-        # eslesen stok YOKSA -> AI o nesneyi/olayi BIREBIR cizer
+        # 2) uygun klip YOKSA -> AI konuyu BIREBIR cizer (sinematik zoom+kaydirma ile klip gibi akar)
         _AKTIF_KONU = []
         if _ai_gorsel(q, hedef_ai):
             medya.append((hedef_ai, "foto"))
-            print("    -> AI gorsel (konuyu BIREBIR cizdi)")
+            print("    -> AI gorsel (konuya ozel, sinematik hareketli)")
             continue
+        # 3) SON CARE: konuya uygun stok foto
+        _AKTIF_KONU = _konu_kelimeleri(q)
+        url = _tekrarsiz_url(_pixabay_foto, qa) or _tekrarsiz_url(_pexels_foto, qa)
+        if url:
+            hedef = os.path.join(MEDYA_KLASORU, f"m_{i:02d}.jpg")
+            if _dosya_indir(url, hedef):
+                medya.append((hedef, "foto"))
+                _KULLANILAN_MEDYA.add(url)
+                try:
+                    with open(umf, "a", encoding="utf-8") as f:
+                        f.write(url + "\n")
+                except OSError:
+                    pass
+                print("    -> STOK FOTO (son care)")
+                continue
         print("    -> bulunamadi, atlaniyor")
 
     print(f"  Toplam {len(medya)} arka plan medyasi hazir.")
@@ -636,8 +647,16 @@ def _foto_klip(path, sure):
     try:
         # ONEMLI: cerceveden BUYUK basla (H*1.35) -> Ken Burns zoom marji olur ve klip boyutu
         # crossfade bindirmesinde ASLA cerceve altina/0'a dusmez ("height and width must be > 0" cozuldu).
-        buyuk = base.resized(height=int(H * 1.35))
-        c = buyuk.resized(lambda t: 1.0 + 0.10 * max(0.0, min(1.0, t / max(sure, 0.1)))).with_position("center")
+        buyuk = base.resized(height=int(H * 1.45))     # genis marj -> zoom + kaydirma alani
+        def _o(t):
+            return max(0.0, min(1.0, t / max(sure, 0.1)))
+        yon = random.choice([(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, 1)])  # her sahne farkli yon
+        kay = 100                                       # kaydirma miktari (piksel)
+        def _poz(t):
+            o = _o(t); s = 1.0 + 0.22 * o               # belirgin sinematik zoom -> KLIP gibi hareket
+            gw, gh = buyuk.w * s, buyuk.h * s
+            return (W / 2 - gw / 2 + yon[0] * kay * o, H / 2 - gh / 2 + yon[1] * kay * o)
+        c = buyuk.resized(lambda t: 1.0 + 0.22 * _o(t)).with_position(_poz)
         return CompositeVideoClip([c], size=(W, H)).with_duration(sure)
     except Exception:
         return base
