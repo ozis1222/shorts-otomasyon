@@ -456,22 +456,35 @@ def _atmosfer_ekle(q):
     return q + " " + _ATMOSFER                  # nötr sorgu -> tam tema atmosferi ekle
 
 
+# ULTRA-GENEL kelimeler tek basina alakasiz sonuc getirir -> ikincil sayilir
+_COK_GENEL = set("stone light water gold golden nature landscape scenery background texture wallpaper "
+                 "abstract sunset sunrise cloud clouds grass tree trees field river lake ocean sea beach coast coastal cliff shore waves wave island seaside harbor "
+                 "sky sun rock rocks mountain hill wall dust smoke".split())
+
+_KONU_FILLER = set("cinematic close aerial slow motion shot footage view scene epic dramatic dark night "
+                   "moody light lighting high detailed realistic photorealistic".split()) | set(_ATMOSFER.lower().split())
+
+
+def _konu_kelimeleri(q):
+    """RAW sorgudaki KONU kelimeleri (adam ne anlatiyorsa). Ultra-genel kelimeler ikincil."""
+    kel = [w for w in re.findall(r"[a-z]{4,}", (q or "").lower()) if w not in _KONU_FILLER]
+    ozel = [w for w in kel if w not in _COK_GENEL]
+    return ozel if ozel else kel
+
+
+_AKTIF_KONU = []   # o an aranan sahnenin KONU kelimeleri (STRICT eslesme)
+
+
 def _temiz_hits(hits, q=""):
-    """Yasak sonuclari at; ONCE bu sahnenin SORGUSUYLA eslesenleri (adam ne anlatiyorsa o),
-    sonra kanal temasini one al -> gorsel o an soylenene birebir yakinsar."""
+    """KONU varsa SADECE o konuyla eslesen stok'u kabul et; yoksa BOS -> caller AI'ya gecer."""
     temiz = [h for h in hits if not _yasak_mi(h.get("tags", ""))]
+    if _AKTIF_KONU:
+        esles = [h for h in temiz if any(w in (h.get("tags", "") or "").lower() for w in _AKTIF_KONU)]
+        return esles[:25]
     if not temiz:
-        temiz = hits                            # hepsi elendiyse mecbur orijinali kullan
-    # 1) SORGUNUN kendi (atmosfer disi) kelimeleriyle eslesenler = en alakali
-    qk = [w for w in re.findall(r"[a-z]{4,}", (q or "").lower()) if w not in _ATMOSFER]
-    tam = [h for h in temiz if any(w in (h.get("tags", "") or "").lower() for w in qk)] if qk else []
-    if len(tam) >= 2:
-        return tam[:25]
-    # 2) yoksa kanal temasiyla eslesenler
+        temiz = hits
     uygun = [h for h in temiz if any(w in (h.get("tags", "") or "").lower() for w in _TEMA_KELIMELER)]
-    if len(uygun) >= 3:
-        return uygun[:25]
-    return temiz[:25]                           # yoksa yasaksiz ust dilim
+    return (uygun or temiz)[:25]
 
 
 _KULLANILAN_MEDYA = set()   # bu kosuda + gecmiste kullanilan medya url'leri (tekrar onleme)
@@ -518,7 +531,7 @@ def arka_plan_indir(sorgular):
     Her sorgu icin ONCE AI ile konuyu BIREBIR cizer (Pollinations); olmazsa STOK'a duser
     (Pixabay video/foto -> filtreli). Konuya ozgu gorsel GARANTI. [(yol, tur), ...] dondurur.
     """
-    global _KULLANILAN_MEDYA
+    global _KULLANILAN_MEDYA, _AKTIF_KONU
     umf = os.path.join(BASE_DIR, "kullanilan_gorseller.txt")
     _KULLANILAN_MEDYA = set()
     if os.path.exists(umf):
@@ -537,15 +550,20 @@ def arka_plan_indir(sorgular):
 
     medya = []
     for i, q in enumerate(sorgular):
+        _AKTIF_KONU = _konu_kelimeleri(q)        # bu sahnenin KONUSU
         qa = _atmosfer_ekle(q)
-        print(f"  Gorsel [{i+1}/{len(sorgular)}]: '{qa}'")
-        # 1) ONCE gercek STOK VIDEO (profesyonel HAREKETLI goruntu; konuya filtreli) -> slayt degil
+        hedef_ai = os.path.join(MEDYA_KLASORU, f"m_{i:02d}.jpg")
+        print(f"  Gorsel [{i+1}/{len(sorgular)}]: '{q}'  (konu: {' '.join(_AKTIF_KONU) or '-'})")
+        # ILK sahne = ana konu -> AI birebir ciz (isimli nesne MUTLAKA gorunsun)
+        if i == 0 and _ai_gorsel(q, hedef_ai):
+            medya.append((hedef_ai, "foto"))
+            print("    -> AI (ana konu birebir cizildi)")
+            continue
+        # SADECE konuya BIREBIR eslesen stok VIDEO (alakasiz manzara/insan gelmez)
         url = _tekrarsiz_url(_pixabay_video, qa) or _tekrarsiz_url(_pexels_video, qa)
         tur = "video"
         if not url:
-            # 2) filtreli STOK FOTO
-            url = (_tekrarsiz_url(_pixabay_foto, qa) or _tekrarsiz_url(_pexels_foto, qa)
-                   or _tekrarsiz_url(_openverse_foto, qa))
+            url = _tekrarsiz_url(_pixabay_foto, qa) or _tekrarsiz_url(_pexels_foto, qa)
             tur = "foto"
         if url:
             ext = "mp4" if tur == "video" else "jpg"
@@ -558,13 +576,13 @@ def arka_plan_indir(sorgular):
                         f.write(url + "\n")
                 except OSError:
                     pass
-                print(f"    -> STOK {tur.upper()} indirildi (konuya uygun)")
+                print(f"    -> STOK {tur.upper()} (konuya BIREBIR uygun)")
                 continue
-        # 3) SON CARE: konuya uygun stok YOKSA AI gorsel (nadir bosluk doldurma)
-        hedef_ai = os.path.join(MEDYA_KLASORU, f"m_{i:02d}.jpg")
+        # eslesen stok YOKSA -> AI o nesneyi/olayi BIREBIR cizer
+        _AKTIF_KONU = []
         if _ai_gorsel(q, hedef_ai):
             medya.append((hedef_ai, "foto"))
-            print("    -> AI gorsel (uygun stok yok, son care)")
+            print("    -> AI gorsel (konuyu BIREBIR cizdi)")
             continue
         print("    -> bulunamadi, atlaniyor")
 
@@ -580,9 +598,11 @@ def _fit_dikey(clip):
     hedef = W / H
     oran = clip.w / clip.h
     if oran > hedef:
-        clip = clip.resized(height=H).cropped(x_center=clip.w / 2, width=W)
+        clip = clip.resized(height=H)
+        clip = clip.cropped(x_center=clip.w / 2, width=W)
     else:
-        clip = clip.resized(width=W).cropped(y_center=clip.h / 2, height=H)
+        clip = clip.resized(width=W)
+        clip = clip.cropped(y_center=clip.h / 2, height=H)
     return clip
 
 
