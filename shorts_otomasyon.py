@@ -110,6 +110,38 @@ USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 
 
 # =========================================================
+#  SEO KATMANI (baslik/aciklama/etiket) - koda GARANTI edildi
+#  Canli kontrol: Gemini aciklamaya HIC hashtag koymuyordu ve etiketler
+#  6 adet tek-kelimeydi -> uzun-kuyruk arama trafigi kayboluyordu.
+# =========================================================
+SEO_SABIT_ETIKET = ['unsolved mysteries', 'true mystery', 'disappearance', 'cold case', 'unexplained', 'mystery']
+SEO_HASHTAG      = ['#unsolvedmystery', '#mystery', '#unexplained', '#truestory']
+
+
+def _seo_duzenle(baslik, aciklama, etiketler, konu=""):
+    """Hashtag'i GARANTI eder, etiketleri uzun-kuyruk + kanal sabitleriyle genisletir."""
+    ek = []
+    k = (konu or "").strip().lower()
+    if k and len(k) <= 40:
+        ek += [k, k + " explained", k + " facts"]
+    birlesik, gorulen = [], set()
+    for t in list(etiketler or []) + ek + SEO_SABIT_ETIKET:
+        t = str(t).strip().lstrip("#")
+        if t and t.lower() not in gorulen and 2 < len(t) <= 40:
+            gorulen.add(t.lower())
+            birlesik.append(t)
+    birlesik = birlesik[:15]                      # YouTube pratigi: 10-15 etiket yeterli
+
+    ac = (aciklama or "").strip()
+    if "#" not in ac:                             # Gemini koymadiysa KOD koyar
+        konu_hash = ["#" + t.replace(" ", "").replace("-", "") for t in birlesik[:3]]
+        hepsi = list(dict.fromkeys(konu_hash + SEO_HASHTAG + ["#shorts"]))
+        ac = ac + "\n\n" + " ".join(hepsi[:8])
+    return baslik, ac, birlesik
+
+
+
+# =========================================================
 #  2) GEMINI ile konu + senaryo + gorsel kelimeleri uret
 # =========================================================
 def gemini_uret():
@@ -165,11 +197,22 @@ RETENTION RULES (this decides whether the video blows up -- target 70%+ average 
   EXACTLY what the opening line describes, and each next query must match the next thing said, evenly from
   start to finish, so the on-screen image ALWAYS matches the words at that moment. Give 7-8 queries.
 
+TITLE RULES (browse CTR -- titles appear side by side in the feed, so sameness kills clicks):
+- Under 70 characters, then " #Shorts".
+- VARY the opening pattern every video. Do NOT start with "The" more than once in every three videos. Rotate:
+  (a) number/scale first -- "A Star 2,000 Times Bigger Than the Sun"
+  (b) "This ..." -- "This Planet Rains Molten Glass Sideways"
+  (c) a question -- "Why Can't Anyone Explain This Signal?"
+  (d) a claim/discovery -- "Scientists Just Found Something That Shouldn't Exist"
+  (e) "The ..." -- allowed, but sparingly.
+- If the subject HAS A NAME, put the name in the title (not "an ancient artifact" but "the Lycurgus Cup";
+  not "a Roman mystery" but "Roman Nanotechnology"). Named subjects win search traffic.
+
 Return ONLY valid JSON (no markdown, no ```), EXACTLY this shape:
 {{
   "topic": "short specific topic label",
   "script": "the full narration text as one paragraph",
-  "title": "catchy, curiosity-driven YouTube title under 90 characters, include #Shorts",
+  "title": "catchy, curiosity-driven YouTube title under 70 characters, include #Shorts",
   "description": "2-3 sentence description, then a few relevant hashtags",
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6"],
   "visual_queries": ["query1", "query2", "query3", "query4", "query5", "query6"]
@@ -911,6 +954,7 @@ def main():
         baslik     = data["title"]
         aciklama   = data["description"]
         etiket_lst = data.get("tags", [])
+        baslik, aciklama, etiket_lst = _seo_duzenle(baslik, aciklama, etiket_lst, data.get("topic", ""))
         sorgular   = data.get("visual_queries", []) or etiket_lst
         print("      Konu   :", data.get("topic"))
         print("      Baslik :", baslik)
