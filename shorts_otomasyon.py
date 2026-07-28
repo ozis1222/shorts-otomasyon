@@ -288,11 +288,35 @@ def _sese_esit_dagit(text, audio_path):
             for i, p in enumerate(parcalar)]
 
 
+# Altyazi bu kelimelerle BITMEZ (yarim kalmis izlenimi verir, okunurlugu bozar)
+_ZAYIF_SON = {"a", "an", "the", "of", "and", "to", "in", "for", "with", "that", "is", "was",
+              "were", "are", "on", "at", "by", "from", "as", "but", "or", "his", "her", "its",
+              "their", "this", "these", "it", "he", "she", "they", "we", "you", "not", "no"}
+
+
 def kelime_gruplari(words, n):
-    """Kelimeleri n'li gruplara boler (ekranda 2-3 kelime)."""
-    gruplar = []
-    for i in range(0, len(words), n):
-        parca = words[i:i + n]
+    """AKILLI parcalama: noktalamada temiz keser, zayif kelimeyle (a/the/of) BITIRMEZ.
+    Eskiden kor n'li bolme 'ENGINEERS CARVED A' gibi yarim altyazi uretiyordu -> okunurluk dusuk.
+    Artik 2-4 kelime arasi esnek, anlamli parcalar -> daha rahat okunur, retention'a olumlu."""
+    enaz = max(2, n - 1)
+    encok = n + 1
+    gruplar, i, N = [], 0, len(words)
+    while i < N:
+        parca = []
+        while i < N and len(parca) < encok:
+            w = words[i]
+            parca.append(w)
+            i += 1
+            ham = (w.get("word") or "").strip()
+            if len(parca) < enaz:
+                continue
+            if ham.endswith((".", ",", "!", "?", ";", ":")):
+                break                                   # cumle/ifade sonu -> en temiz kesim
+            son = ham.strip('.,!?;:"\'').lower()
+            if len(parca) >= n and son not in _ZAYIF_SON:
+                break                                   # normal kesim (zayif kelimeyle bitmez)
+        if not parca:
+            break
         gruplar.append({
             "text":  " ".join(w["word"] for w in parca).upper(),
             "start": parca[0]["start"],
