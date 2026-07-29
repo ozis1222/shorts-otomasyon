@@ -3,23 +3,32 @@ name: Shorts Otomasyon
 on:
   workflow_dispatch:   # Sadece cron-job.org tetikler
 
+# Ayni anda iki kosu calisirsa hafiza dosyalari (gecmis.json) catisir -> sirayla calissin
+concurrency:
+  group: shorts-uretim
+  cancel-in-progress: false
+
 jobs:
   uret-ve-yukle:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60          # yuksek kalite kodlama + AI gorseller icin genis pay
     permissions:
       contents: write
     steps:
       - name: Kodu indir
         uses: actions/checkout@v5
+
       - name: Python kur
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+
       - name: ffmpeg ve font kur
         run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu
+
       - name: Kutuphaneleri kur
         run: pip install -r requirements.txt
+
       - name: Gizli dosyalari olustur
         env:
           CLIENT_SECRET_JSON: ${{ secrets.CLIENT_SECRET_JSON }}
@@ -27,17 +36,52 @@ jobs:
         run: |
           printf '%s' "$CLIENT_SECRET_JSON" > client_secret.json
           printf '%s' "$TOKEN_JSON" > token.json
+
       - name: Video uret ve YouTube'a yukle
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY:  ${{ secrets.GEMINI_API_KEY }}
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+          PEXELS_API_KEY:  ${{ secrets.PEXELS_API_KEY }}
         run: python shorts_otomasyon.py
-      - name: Kullanilan gorsel hafizasini repoya kaydet
+
+      - name: Hafizayi repoya kaydet (konu gecmisi + performans + gorsel)
         if: always()
         continue-on-error: true
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add kullanilan_gorseller.txt
-          git commit -m "gorsel hafizasi guncellendi [skip ci]" || exit 0
-          git push
+
+          # Sadece VAR OLAN dosyalari ekle (toplu 'git add' eksik dosyada tumden basarisiz olur)
+          for f in gecmis.json performans.json viral_ornekler.json kullanilan_gorseller.txt; do
+            if [ -f "$f" ]; then git add "$f"; fi
+          done
+
+          if git diff --cached --quiet; then
+            echo "hafizada degisiklik yok"
+            exit 0
+          fi
+
+          git commit -m "hafiza guncellendi: konu gecmisi + performans [skip ci]"
+
+          # Baska bir kosu araya girdiyse cakismadan birlestir, 3 kez dene
+          for i in 1 2 3; do
+            if git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push; then
+              echo "hafiza kaydedildi"
+              exit 0
+            fi
+            echo "push denemesi $i basarisiz, tekrar deneniyor..."
+            sleep 5
+          done
+          echo "hafiza push edilemedi (bir sonraki kosuda tekrar denenecek)"
+
+      - name: Uretilen videoyu ve thumbnail'i sakla (kontrol icin)
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: son-video
+          path: |
+            shorts_hazir.mp4
+            thumbnail.jpg
+          retention-days: 5
+          if-no-files-found: ignore

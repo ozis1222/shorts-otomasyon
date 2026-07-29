@@ -1,5 +1,7 @@
 edge-tts
 moviepy
+Pillow
+numpy
 google-genai
 google-api-python-client
 google-auth-oauthlib
