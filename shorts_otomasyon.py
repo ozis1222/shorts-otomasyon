@@ -206,7 +206,23 @@ anomaly anomalies apparition cryptid phenomenon phenomena paranormal supernatura
 encounter encounters sighting sightings abduction conspiracy theory theories investigation
 investigator detective forensic autopsy coroner verdict testimony survivor victim victims suspect
 murderer trace trapped rumor rumors legend legends folklore urban creature creatures monster
+million billion trillion defies defied terrifying creepiest eeriest impossible disturbing
+forgotten legally banned locked walked wearing sacrificed destroyed burning burned erase erased
+tried kept stopped overnight alive rained raining object objects condition conditions scientific
+american european african asian australian english british scottish irish french german spanish
+italian greek japanese chinese brazilian mexican egyptian indian eastern western northern southern
 """.split())
+
+# NOT: 'arctic', 'pacific', 'siberia' gibi YER adlari bilerek jenerik SAYILMADI.
+# Olculdu: yer adlarini jenerik yapinca yanlis alarm sifirlaniyor ama kanaldaki
+# "Arktik hayalet kasaba" tekrari (3 video) yakalanamaz hale geliyordu.
+# Tercih: tekrari kacirmaktansa ara sira gecerli bir konuyu reddetmek daha iyi -
+# reddin bedeli tek bir yeniden uretim denemesi, kacirmanin bedeli tekrar video.
+
+# Vaka kimligi tasiyan kelimeler BILEREK _YAYGIN'a alinmadi. Ornegin bu kanalda
+# 'masks' (Kursun Maskeler), 'lighthouse' (Flannan Isles), 'artifact', 'hammer',
+# 'blobs' (Oakville) tam da tekrar eden vakalari isaret ediyor; jenerik sayilsalardi
+# ayni hikayenin dorduncu kez cikmasini engelleyemezdik.
 
 
 def _kelime_kumesi(metin):
@@ -412,6 +428,35 @@ def _temiz_baslik(s, limit=110):
     return s[:limit]
 
 
+# Viral aramada nise UYMAYAN icerik (canli testte cizgi film / K-pop / dizi klipleri
+# 'unsolved mystery' kelimesini tasidigi icin ilk siralara giriyordu)
+_VIRAL_YASAK = (
+    "cartoon", "anime", "kpop", "k-pop", "doraemon", "tmkoc", "drama", "episode", "gameplay",
+    "minecraft", "roblox", "gta", "fortnite", "prank", "movie clip", "trailer", "song", "lyrics",
+    "reaction", "tiktok compilation", "asmr", "quiz", "riddle", "can you solve", "puzzle",
+)
+# Nis kelimesi hic gecmiyorsa baslik bize uygun degildir
+_VIRAL_GEREKLI = ("mystery", "mysteries", "unsolved", "unexplained", "disappear", "vanish",
+                  "missing", "cold case", "creepy", "eerie", "haunt", "strange")
+
+
+def _viral_uygun_mu(baslik):
+    """Viral ornek gercekten bu nise mi ait? Degilse prompt'a hic girmemeli."""
+    if not baslik:
+        return False
+    d = baslik.lower()
+    if any(y in d for y in _VIRAL_YASAK):
+        return False
+    if not any(g in d for g in _VIRAL_GEREKLI):
+        return False
+    # Ingilizce disi basliklar (Hintce/Endonezce/Korece vb.) stil referansi olarak ise yaramaz
+    harf = [c for c in baslik if c.isalpha()]
+    if not harf:
+        return False
+    ascii_oran = sum(1 for c in harf if ord(c) < 128) / len(harf)
+    return ascii_oran >= 0.9
+
+
 def kanal_performansi():
     """
     Kendi kanalindaki videolari izlenmeye gore siralar.
@@ -507,18 +552,22 @@ def viral_ornekleri_getir(saat_gecerlilik=20):
             return []
         sonra = (simdi - datetime.timedelta(days=120)).strftime("%Y-%m-%dT%H:%M:%SZ")
         bulunan = {}
-        for q in VIRAL_SORGULARI[:2]:          # kota dostu: her kosuda 2 sorgu
+        # 3 sorgu: filtreleme sonrasi elde yeterli ornek kalsin (sonuc 20 saat onbellekleniyor,
+        # yani gunde bir kez ~300 kota birimi - yukleme basina 1600'un yaninda onemsiz)
+        for q in VIRAL_SORGULARI[:3]:
             r = yt.search().list(part="snippet", q=q, type="video", videoDuration="short",
                                  order="viewCount", publishedAfter=sonra, maxResults=25,
-                                 relevanceLanguage="en").execute()
+                                 relevanceLanguage="en", regionCode="US").execute()
             idler = [i["id"]["videoId"] for i in r.get("items", []) if i.get("id", {}).get("videoId")]
             if not idler:
                 continue
             d = yt.videos().list(part="snippet,statistics", id=",".join(idler)).execute()
             for v in d.get("items", []):
                 iz = int(v.get("statistics", {}).get("viewCount", 0) or 0)
-                if iz >= 300000:
-                    bulunan[v["id"]] = {"baslik": _temiz_baslik(v["snippet"]["title"]), "izlenme": iz}
+                baslik = _temiz_baslik(v["snippet"]["title"])
+                # Alakasiz viral icerigi prompt'a SOKMA: kotu ornek, kotu yon verir
+                if iz >= 300000 and _viral_uygun_mu(baslik):
+                    bulunan[v["id"]] = {"baslik": baslik, "izlenme": iz}
         basliklar = sorted(bulunan.values(), key=lambda x: x["izlenme"], reverse=True)[:14]
         if basliklar:
             try:
