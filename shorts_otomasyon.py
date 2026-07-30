@@ -612,11 +612,16 @@ def arka_plan_indir(sorgular):
     """
     global _KULLANILAN_MEDYA, _AKTIF_KONU
     umf = os.path.join(BASE_DIR, "kullanilan_gorseller.txt")
+    # KAYAN PENCERE: sadece SON 60 gorsel yasakli (~9 video). Sonsuz yasak havuzu tuketip
+    # sistemi AI gorsele dusuruyordu -> kalite dusuyordu. 60'lik pencere hem tekrar hissini
+    # onler (bir klip 9+ video boyunca donmez) hem klip havuzunu canli tutar.
+    TEKRAR_PENCERE = 60
     _KULLANILAN_MEDYA = set()
     if os.path.exists(umf):
         try:
             with open(umf, "r", encoding="utf-8") as f:
-                _KULLANILAN_MEDYA = {ln.strip() for ln in f if ln.strip()}
+                satirlar = [ln.strip() for ln in f if ln.strip()]
+            _KULLANILAN_MEDYA = set(satirlar[-TEKRAR_PENCERE:])
         except OSError:
             pass
 
@@ -653,6 +658,24 @@ def arka_plan_indir(sorgular):
                     pass
                 print("    -> KLIP (konuya BIREBIR uygun hareketli video)")
                 continue
+        # 1b) KLIP icin IKINCI DENEME: ana konu + kanal temasi (daha genis havuz).
+        #     Amac: kaliteli HAREKETLI klip bulma sansini artirmak, AI stile dusmemek.
+        if _AKTIF_KONU:
+            genis = _AKTIF_KONU[0] + " " + _ATMOSFER
+            url = _tekrarsiz_url(_pixabay_video, genis) or _tekrarsiz_url(_pexels_video, genis)
+            if url:
+                hedef = os.path.join(MEDYA_KLASORU, f"m_{i:02d}.mp4")
+                if _dosya_indir(url, hedef):
+                    medya.append((hedef, "video"))
+                    _KULLANILAN_MEDYA.add(url)
+                    try:
+                        with open(umf, "a", encoding="utf-8") as f:
+                            f.write(url + "\n")
+                    except OSError:
+                        pass
+                    print("    -> KLIP (genis arama, konuya uygun)")
+                    continue
+
         # 2) uygun klip YOKSA -> AI konuyu BIREBIR cizer (sinematik zoom+kaydirma ile klip gibi akar)
         _AKTIF_KONU = []
         if _ai_gorsel(q, hedef_ai):
