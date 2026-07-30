@@ -1,8 +1,16 @@
 
 __pycache__/
 *.pyc
+.venv/
+venv/
+
+# GIZLI - asla commit edilmemeli
 client_secret.json
 token.json
+token.json.eski
+
+# Uretim ciktilari (her kosuda yeniden uretilir)
 ses.mp3
 shorts_hazir.mp4
+thumbnail.jpg
 medya_gecici/
