@@ -682,7 +682,8 @@ cases, lost cities or treasures, strange events witnessed by many, unexplained d
 "what really happened" cases from any country and any century. Be specific, never generic.
 
 --- SCRIPT RULES (spoken narration) ---
-- Language: English. Length: 110-150 words (about 40-55 seconds spoken).
+- Language: English. Length: 60-75 words MAXIMUM (about 30-35 seconds spoken). NEVER exceed 40 seconds.
+- Pick a topic that can be FULLY told in 30-35 seconds: ONE idea, ONE payoff.
 - SENTENCE 1 IS THE HOOK and it decides everything:
   * MAXIMUM 15 words. Ideally 8-12.
   * Front-load the single most shocking, concrete image or fact FIRST.
