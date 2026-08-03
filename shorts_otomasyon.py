@@ -691,19 +691,35 @@ cases, lost cities or treasures, strange events witnessed by many, unexplained d
   * FORBIDDEN openers: "Imagine", "Today", "Welcome", "In this video", "Have you ever",
     "Did you know", "Picture this", "What if I told you", "Here's", "So", "Once upon".
   * Every video must use a DIFFERENT hook structure. Rotate: a stark impossible fact / a number that
-    should not exist / a chilling unanswered question / a single vivid image / a blunt contradiction.
+    should not exist / a single vivid image / a blunt contradiction / a named subject doing something
+    impossible.  NEVER open with a question -- measured -7.3 percentile against every other pattern.
 - Then keep tension rising. Short, punchy sentences. No filler, no throat-clearing, no summarising.
 - Every 2-3 sentences drop a new concrete detail that escalates the strangeness (this is what stops
   people from scrolling mid-video).
 - The final 2 sentences must PAY OFF the curiosity gap with the eeriest unresolved detail, then invite
   the viewer to watch another case on the channel. End on unease, never on a neat conclusion.
+- PERSONAL RELEVANCE -- BIGGEST MEASURED DRIVER OF SUBSCRIBERS: videos about the VIEWER convert
+  18-42 subscribers per 1000 views; videos about a purely distant object convert ZERO (one got 1404
+  views and 0 subscribers). Before the halfway point, connect the case to the viewer: "you", "your",
+  "most people". For distant subjects, land ONE line on what they would SEE, FEEL or LOSE if they
+  were there. Distance is the enemy of subscribing.
+- LIKE TRIGGER: the 30 videos with the highest like-rate convert 5.7 subs/1000; the lowest 30 convert
+  1.1 -- a 5x gap, stronger than retention. Build to ONE line at ~70% through so striking the viewer
+  wants to react. Concrete and physical, never an abstraction.
 - NO stage directions, NO emojis, NO "[music]", NO speaker labels.
 
 --- TITLE RULES (browse CTR) ---
 - Under 70 characters, then " #Shorts".
 - If the subject HAS A NAME, put the name in the title (named subjects win search traffic).
-- VARY the opening pattern every video. Do NOT start with "The" more than once every three videos.
-  Rotate: (a) number/scale first, (b) "This ...", (c) a question, (d) a blunt claim, (e) "The ..." rarely.
+- WINNING FORMULA (measured on 177 sibling-channel videos, channel-internal percentile):
+  a CONCRETE NAMED SUBJECT + a relative clause stating the shocking thing it DID.
+  "The Pilot Who Vanished After Seeing THIS" / "60 People Died After Sitting in the Busby Stoop Chair".
+  Measured +12.7 percentile.
+- ONE word may be ALL-CAPS for emphasis (+14.0 measured). It MUST be a POWER word (noun/verb/adjective),
+  never a connector like THAT/WHO/THE.
+- Numbers and concrete quantities help (+3.6).
+- NEVER end the title with a question mark (-7.3 measured) and NEVER start with "This"/"That" (-8.7).
+  Avoid starting with "Why"/"How" (-5.0). Vary wording between videos, but always keep the formula above.
 
 --- THUMBNAIL TEXT ---
 - "thumbnail_text": 2 to 4 words, UPPERCASE, brutally punchy, readable at thumbnail size.
@@ -1601,6 +1617,13 @@ def video_olustur(words, medya, out_path):
 
     font_path = _font_bul()
     audio = AudioFileClip(AUDIO_FILE)
+    # SES NORMALIZASYONU: TTS cikisinin seviyesi videodan videoya degisiyor; akista
+    # sessiz gelen video aninda kaydiriliyor -> her video ayni seviyede olsun.
+    try:
+        from moviepy import afx
+        audio = audio.with_effects([afx.AudioNormalize()])
+    except Exception as e:
+        print("  (ses normalize atlandi:", e, ")")
     dur = audio.duration
 
     bg = _arka_plan_montaj(medya, dur)
