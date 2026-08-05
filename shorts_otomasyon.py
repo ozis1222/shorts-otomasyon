@@ -246,6 +246,15 @@ def _jaccard(a, b):
     return len(A & B) / len(A | B)
 
 
+def _normalize(s):
+    """Birebir-ayni karsilastirmasi icin metni sadelestirir: hashtag'leri at, kucuk
+    harfe indir, harf/rakam disindaki her seyi bosluga cevir.
+    Boylece 'Same Title #Shorts' ile 'same title!' AYNI kabul edilir."""
+    s = re.sub(r"#\w+", " ", (s or "").lower())
+    s = re.sub(r"[^a-z0-9]+", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
 def gecmisi_oku():
     """gecmis.json -> [{topic,title,hook,tarih,video_id}, ...]"""
     kayitlar = []
@@ -311,21 +320,28 @@ def gecmise_ekle(kayit):
         print("  (gecmis.json yazilamadi:", e, ")")
 
 
-def tekrar_mi(konu, baslik, hook, gecmis, kati=True):
+def tekrar_mi(konu, baslik, hook, gecmis, kati=True, aciklama=""):
     """
     Uretilen fikir gecmistekilerden biriyle AYNI/COK BENZER mi?
     Tekrar ise sebebi yazan bir metin, degilse None doner.
 
-    HER ZAMAN uygulanan (vazgecilmez) kural:
+    HER ZAMAN uygulanan (vazgecilmez, kati/gevsek fark etmez) kurallar:
       * Ayni AYIRT EDICI kelime (vaka adi) iki konuda da geciyorsa -> AYNI HIKAYE.
-    kati=True iken ek olarak benzerlik esikleri de uygulanir (ilk denemeler icin).
-    kati=False son denemelerde kullanilir: isim cakismasi hala engellenir ama
-    yakin-tema videolarin uretimi tamamen kilitlenmez.
+      * BASLIK gecmisteki bir baslikla birebir (normalize edilmis) ayni ya da
+        cok benzer -> tekrar. Ayni baslik ASLA iki kez cikmaz.
+      * ACIKLAMA gecmistekiyle birebir ayni ya da cok benzer -> tekrar. Ayni
+        aciklama ASLA iki kez cikmaz.
+    kati=True iken konu/hook icin ek (daha siki) benzerlik esikleri de uygulanir.
+    kati=False son denemelerde kullanilir: yukaridaki 'asla' kurallari yine
+    uygulanir, sadece yakin-tema konu esigi biraz gevser ki uretim kilitlenmesin.
     """
     yeni_isim = _ozel_isimler(konu) | _ozel_isimler(baslik)
+    yeni_baslik_n = _normalize(baslik)
+    yeni_aciklama_n = _normalize(aciklama)
     for k in gecmis:
         eski_konu = k.get("topic", "") or ""
         eski_baslik = k.get("title", "") or ""
+        eski_aciklama = k.get("description", "") or ""
         eski_isim = _ozel_isimler(eski_konu) | _ozel_isimler(eski_baslik)
 
         cakisan = yeni_isim & eski_isim
@@ -333,11 +349,23 @@ def tekrar_mi(konu, baslik, hook, gecmis, kati=True):
             hedef = eski_konu or eski_baslik
             return f"'{hedef}' ile ayni vaka adi geciyor: {', '.join(sorted(cakisan))}"
 
+        # BASLIK -> her iki modda da ASLA tekrar etmesin
+        if eski_baslik and yeni_baslik_n:
+            if yeni_baslik_n == _normalize(eski_baslik):
+                return f"'{eski_baslik}' ile birebir ayni baslik"
+            if _jaccard(baslik, eski_baslik) >= (0.55 if kati else 0.65):
+                return f"'{eski_baslik}' basligiyla cok benzer"
+
+        # ACIKLAMA -> her iki modda da ASLA tekrar etmesin
+        if eski_aciklama and yeni_aciklama_n:
+            if yeni_aciklama_n == _normalize(eski_aciklama):
+                return f"'{eski_konu or eski_baslik}' ile birebir ayni aciklama"
+            if _jaccard(aciklama, eski_aciklama) >= (0.60 if kati else 0.70):
+                return f"'{eski_konu or eski_baslik}' aciklamasiyla cok benzer"
+
         if kati:
             if _jaccard(konu, eski_konu) >= 0.40:
                 return f"'{eski_konu}' konusuyla cok benzer"
-            if eski_baslik and _jaccard(baslik, eski_baslik) >= 0.55:
-                return f"'{eski_baslik}' basligiyla cok benzer"
             if k.get("hook") and hook and _jaccard(hook, k["hook"]) >= 0.55:
                 return f"'{k['hook']}' hook'uyla cok benzer"
         else:
@@ -814,15 +842,16 @@ def gemini_uret(performans, viraller):
     for tur in range(1, DENEME_SAYISI + 1):
         kati = tur <= KATI_DENEME
         data = _gemini_cagir(_prompt_kur(gecmis, performans, viraller, reddedilenler))
-        konu   = (data.get("topic") or "").strip()
-        script = (data.get("script") or "").strip()
-        baslik = (data.get("title") or "").strip()
+        konu    = (data.get("topic") or "").strip()
+        script  = (data.get("script") or "").strip()
+        baslik  = (data.get("title") or "").strip()
+        aciklama = (data.get("description") or "").strip()
         if not konu or not script or not baslik:
             reddedilenler.append(konu or "(bos yanit)")
             print(f"      [{tur}] eksik alan geldi, yeniden isteniyor...")
             continue
 
-        sebep = tekrar_mi(konu, baslik, _ilk_cumle(script), gecmis, kati=kati)
+        sebep = tekrar_mi(konu, baslik, _ilk_cumle(script), gecmis, kati=kati, aciklama=aciklama)
         if sebep:
             reddedilenler.append(konu)
             print(f"      [{tur}] TEKRAR reddedildi -> {konu}  ({sebep})")
@@ -1183,6 +1212,13 @@ def _medyayi_isaretle(url):
         pass
 
 
+def _tekrarsiz_url(fn, q):
+    """Kaynak (Pexels/Pixabay) fonksiyonunu cagirir ve TEKRARSIZ bir URL dondurur.
+    Kaynaklar zaten _en_iyi_kalite icinde _KULLANILAN_MEDYA'daki (daha once kullanilmis)
+    tum URL'leri eledigi icin donen URL her zaman daha once hic kullanilmamis olandir."""
+    return fn(q, MAX_BUYUTME)
+
+
 def _keskinlestir(path):
     """
     Foto/AI gorselini videoya girmeden once profesyonellestirir:
@@ -1261,16 +1297,16 @@ def arka_plan_indir(sorgular):
     """
     global _KULLANILAN_MEDYA, _AKTIF_KONU
     umf = os.path.join(BASE_DIR, "kullanilan_gorseller.txt")
-    # KAYAN PENCERE: sadece SON 60 gorsel yasakli (~9 video). Sonsuz yasak havuzu tuketip
-    # sistemi AI gorsele dusuruyordu -> kalite dusuyordu. 60'lik pencere hem tekrar hissini
-    # onler (bir klip 9+ video boyunca donmez) hem klip havuzunu canli tutar.
-    TEKRAR_PENCERE = 60
+    # KALICI TEKRAR ENGELI: daha once HERHANGI bir videoda kullanilmis her gorsel/klip
+    # URL'si SONSUZA DEK yasakli -> ayni stok klip/foto iki farkli videoda ASLA cikmaz.
+    # (Kaynak fonksiyonlar _en_iyi_kalite icinde bu kumeyi eleme olarak kullanir. Havuz
+    #  tukendiginde zincir zaten AI gorseline duser; AI her sahnede rastgele seed ile
+    #  benzersiz gorsel urettiginden gorsel tekrari yine olusmaz.)
     _KULLANILAN_MEDYA = set()
     if os.path.exists(KULLANILAN_GORSEL_FILE):
         try:
             with open(umf, "r", encoding="utf-8") as f:
-                satirlar = [ln.strip() for ln in f if ln.strip()]
-            _KULLANILAN_MEDYA = set(satirlar[-TEKRAR_PENCERE:])
+                _KULLANILAN_MEDYA = {ln.strip() for ln in f if ln.strip()}
         except OSError:
             pass
 
@@ -1932,6 +1968,7 @@ def main():
         gecmise_ekle({
             "topic": konu,
             "title": baslik,
+            "description": (data.get("description") or "").strip(),
             "hook": _ilk_cumle(script),
             "tarih": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M"),
             "video_id": video_id,

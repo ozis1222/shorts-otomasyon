@@ -66,13 +66,28 @@ Uc katman:
    sifirdan basliyor ve ayni vakalari tekrar anlatiyordu. Asil tekrar sebebi buydu.)
 2. **Kanaldan tohumlama** - ilk kosuda YouTube'daki **zaten yayinlanmis** video basliklarini da
    hafizaya ekler. Yani `gecmis.json` olusmadan once yuklenmis hikayeler de tekrar edilmez.
-3. **Kod tarafinda dogrulama** - Gemini'nin onerdigi konu, gecmistekilerle ayni **vaka adini**
-   (`dyatlov`, `roanoke`, `celeste` gibi ayirt edici kelimeler) tasiyorsa reddedilir ve yeniden
-   uretim istenir. 8 denemeye kadar surer. Hicbir benzersiz fikir cikmazsa kosu **bilerek iptal
-   edilir** - tekrar video yayinlamaktansa o kosuyu atlamak tercih edilir.
+3. **Kod tarafinda dogrulama** - Gemini'nin onerdigi fikir su dordunden herhangi biriyle
+   cakisirsa reddedilir ve yeniden uretim istenir (8 denemeye kadar):
+   - **Konu / vaka adi**: gecmistekilerle ayni **vaka adini** (`dyatlov`, `roanoke`, `celeste`
+     gibi ayirt edici kelimeler) tasiyorsa -> ayni hikaye.
+   - **Baslik**: gecmisteki bir baslikla birebir (normalize edilmis) ayni ya da cok benzer olamaz.
+     Ayni baslik ASLA iki kez cikmaz - hem ilk (siki) hem son (gevsek) denemelerde uygulanir.
+   - **Aciklama**: gecmisteki bir aciklamayla birebir ayni ya da cok benzer olamaz. Bu yuzden
+     aciklama metni de `gecmis.json`'a (SEO'suz ham hali) yazilir ve karsilastirilir.
+   - **Hook**: acilis cumlesi gecmistekiyle cok benzerse reddedilir.
+
+   Hicbir benzersiz fikir cikmazsa kosu **bilerek iptal edilir** - tekrar video yayinlamaktansa
+   o kosuyu atlamak tercih edilir.
+
+4. **Gorseller asla tekrar etmez** - her kullanilan klip/foto URL'si `kullanilan_gorseller.txt`'e
+   yazilir ve **tum gecmis kalici olarak yasaklidir** (eski surumdeki 60'lik kayan pencere
+   kaldirildi). Ayni stok klip/foto iki farkli videoda bir daha gorunmez; kaynak havuzu
+   tukendiginde sistem, her sahnede rastgele seed ile **benzersiz** AI gorseli uretmeye duser.
 
 `expedition`, `shipwreck` gibi yaygin kelimelerin ortak olmasi tek basina red sebebi degildir;
-sadece ayirt edici ozel isimler tekrari tetikler.
+sadece ayirt edici ozel isimler tekrari tetikler. Not: sistem bilerek **siki** taraftadir -
+ara sira gercekten ozgun bir konuyu da reddedebilir; bunun bedeli tek bir yeniden-uretim
+denemesidir, buna karsilik hicbir konu/baslik/aciklama/gorsel iki kez yayina cikmaz.
 
 ---
 
