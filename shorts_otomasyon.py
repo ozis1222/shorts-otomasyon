@@ -95,6 +95,17 @@ AUDIO_BITRATE     = "192k"
 # 'medium': acik bitrate zaten yuksek oldugu icin 'slow'a gore gozle gorulur kalite farki
 # yok, ama 2 cekirdekli Actions makinesinde kodlama suresini yariya indiriyor.
 X264_PRESET       = os.environ.get("X264_PRESET") or "medium"
+
+# --- FAZ 2: SINEMATIK RENDER KATMANI (FFmpeg son-islem pasi) ---
+# Render bitince ham videoya tek bir FFmpeg pasi uygulanir: soguk belgesel gradesi +
+# film grain (temporal = hafif dogal flicker) + vignette, ve anlatim altina lavfi ile
+# SENTEZLENEN (asset gerektirmeyen) derin ambient ugultu. Pas coker ozel bir durumda
+# ham video oldugu gibi kullanilir -> hat asla kirilmaz.
+SINEMATIK      = os.environ.get("SINEMATIK", "1") != "0"     # grade + grain + vignette
+SINEMATIK_GRAIN = int(os.environ.get("SINEMATIK_GRAIN") or 7)  # 0-20; film grain siddeti
+AMBIENT_SES    = os.environ.get("AMBIENT_SES", "1") != "0"   # derin ugultu ses yatagi
+AMBIENT_VOL    = os.environ.get("AMBIENT_VOL") or "0.16"     # anlatimin cok altinda kalsin
+VHS_MOD        = os.environ.get("VHS", "0") == "1"           # opsiyonel: arsiv/CCTV analog doku
 # Bir kaynak, 1080x1920'yi doldurmak icin en fazla bu kadar BUYUTULEBILIR.
 # 1.0 = hic buyutme yok (birebir/kucultme). 1.25 = en fazla %25 buyutme.
 MAX_BUYUTME       = 1.25    # 1. tercih: gercek klip, kristal net
@@ -246,6 +257,15 @@ def _jaccard(a, b):
     return len(A & B) / len(A | B)
 
 
+def _normalize(s):
+    """Birebir-ayni karsilastirmasi icin metni sadelestirir: hashtag'leri at, kucuk
+    harfe indir, harf/rakam disindaki her seyi bosluga cevir.
+    Boylece 'Same Title #Shorts' ile 'same title!' AYNI kabul edilir."""
+    s = re.sub(r"#\w+", " ", (s or "").lower())
+    s = re.sub(r"[^a-z0-9]+", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
 def gecmisi_oku():
     """gecmis.json -> [{topic,title,hook,tarih,video_id}, ...]"""
     kayitlar = []
@@ -311,21 +331,28 @@ def gecmise_ekle(kayit):
         print("  (gecmis.json yazilamadi:", e, ")")
 
 
-def tekrar_mi(konu, baslik, hook, gecmis, kati=True):
+def tekrar_mi(konu, baslik, hook, gecmis, kati=True, aciklama=""):
     """
     Uretilen fikir gecmistekilerden biriyle AYNI/COK BENZER mi?
     Tekrar ise sebebi yazan bir metin, degilse None doner.
 
-    HER ZAMAN uygulanan (vazgecilmez) kural:
+    HER ZAMAN uygulanan (vazgecilmez, kati/gevsek fark etmez) kurallar:
       * Ayni AYIRT EDICI kelime (vaka adi) iki konuda da geciyorsa -> AYNI HIKAYE.
-    kati=True iken ek olarak benzerlik esikleri de uygulanir (ilk denemeler icin).
-    kati=False son denemelerde kullanilir: isim cakismasi hala engellenir ama
-    yakin-tema videolarin uretimi tamamen kilitlenmez.
+      * BASLIK gecmisteki bir baslikla birebir (normalize edilmis) ayni ya da
+        cok benzer -> tekrar. Ayni baslik ASLA iki kez cikmaz.
+      * ACIKLAMA gecmistekiyle birebir ayni ya da cok benzer -> tekrar. Ayni
+        aciklama ASLA iki kez cikmaz.
+    kati=True iken konu/hook icin ek (daha siki) benzerlik esikleri de uygulanir.
+    kati=False son denemelerde kullanilir: yukaridaki 'asla' kurallari yine
+    uygulanir, sadece yakin-tema konu esigi biraz gevser ki uretim kilitlenmesin.
     """
     yeni_isim = _ozel_isimler(konu) | _ozel_isimler(baslik)
+    yeni_baslik_n = _normalize(baslik)
+    yeni_aciklama_n = _normalize(aciklama)
     for k in gecmis:
         eski_konu = k.get("topic", "") or ""
         eski_baslik = k.get("title", "") or ""
+        eski_aciklama = k.get("description", "") or ""
         eski_isim = _ozel_isimler(eski_konu) | _ozel_isimler(eski_baslik)
 
         cakisan = yeni_isim & eski_isim
@@ -333,11 +360,23 @@ def tekrar_mi(konu, baslik, hook, gecmis, kati=True):
             hedef = eski_konu or eski_baslik
             return f"'{hedef}' ile ayni vaka adi geciyor: {', '.join(sorted(cakisan))}"
 
+        # BASLIK -> her iki modda da ASLA tekrar etmesin
+        if eski_baslik and yeni_baslik_n:
+            if yeni_baslik_n == _normalize(eski_baslik):
+                return f"'{eski_baslik}' ile birebir ayni baslik"
+            if _jaccard(baslik, eski_baslik) >= (0.55 if kati else 0.65):
+                return f"'{eski_baslik}' basligiyla cok benzer"
+
+        # ACIKLAMA -> her iki modda da ASLA tekrar etmesin
+        if eski_aciklama and yeni_aciklama_n:
+            if yeni_aciklama_n == _normalize(eski_aciklama):
+                return f"'{eski_konu or eski_baslik}' ile birebir ayni aciklama"
+            if _jaccard(aciklama, eski_aciklama) >= (0.60 if kati else 0.70):
+                return f"'{eski_konu or eski_baslik}' aciklamasiyla cok benzer"
+
         if kati:
             if _jaccard(konu, eski_konu) >= 0.40:
                 return f"'{eski_konu}' konusuyla cok benzer"
-            if eski_baslik and _jaccard(baslik, eski_baslik) >= 0.55:
-                return f"'{eski_baslik}' basligiyla cok benzer"
             if k.get("hook") and hook and _jaccard(hook, k["hook"]) >= 0.55:
                 return f"'{k['hook']}' hook'uyla cok benzer"
         else:
@@ -360,7 +399,9 @@ def _ilk_cumle(metin):
 
 
 def hook_sorunu(script):
-    """Hook zayifsa sebebini doner, saglamsa None."""
+    """Hook zayifsa sebebini doner, saglamsa None.
+    Ilk cumle videonun kaderidir. Reddedilir: cok uzun/kisa, klise kalip, SORU ile
+    acilis, ya da TARIH (yil/ay) ile acilis. Hedef: dogrudan CELISKI ile baslamak."""
     hook = _ilk_cumle(script)
     if not hook:
         return "senaryo bos"
@@ -373,7 +414,66 @@ def hook_sorunu(script):
     for y in _YASAK_HOOK_BAS:
         if dusuk.startswith(y):
             return f"hook yasak kalipla basliyor: '{y.strip()}'"
+    # SORU ile acilis yasak: izleyiciyi durduran sey cevap degil, celiskidir
+    if hook.rstrip().endswith("?"):
+        return "hook soru ile aciliyor (celiski ile acilmali)"
+    # TARIH ile acilis yasak: 'In 1972,' / 'On March 3,' / '1972 ...'
+    if re.match(r"^(in|on|by|during|back in)\s+(the\s+)?(17|18|19|20)\d\d\b", dusuk):
+        return "hook tarihle (yil) aciliyor"
+    if re.match(r"^(in|on)\s+(january|february|march|april|may|june|july|august|"
+                r"september|october|november|december)\b", dusuk):
+        return "hook tarihle (ay) aciliyor"
+    if re.match(r"^(17|18|19|20)\d\d\b", dusuk):
+        return "hook yil ile aciliyor"
     return None
+
+
+# --- ASIRI KULLANILAN KELIME / KLISE YASAGI ---
+# Kanal 'hep ayni video' gibi gorunmesin diye: olayi ETIKETLEME, olayin kendisini anlat.
+# Asagidaki kelime/kaliplar SCRIPT ve BASLIKTA yasak; gecerse fikir yeniden uretilir.
+YASAK_KELIMELER = [
+    "vanished", "vanish", "vanishes", "vanishing",
+    "disappeared", "disappear", "disappears", "disappearance", "disappearances",
+    "unsolved", "missing",
+    "lost forever", "gone without a trace", "without a trace",
+    "nobody knows", "no one knows", "the mystery remains", "remains a mystery",
+    "to this day", "never found", "never seen again", "never to be seen",
+]
+
+
+def _yasak_kelime_var(*metinler):
+    """Metinlerde asiri kullanilan klise kelime/kalip varsa ilkini, yoksa None doner.
+    Tek kelimeler kelime-siniriyla, bosluklu kaliplar dogrudan aranir."""
+    bir = " ".join((m or "") for m in metinler).lower()
+    for k in YASAK_KELIMELER:
+        if " " in k:
+            if k in bir:
+                return k
+        elif re.search(r"\b" + re.escape(k) + r"\b", bir):
+            return k
+    return None
+
+
+# --- KONU TURU ROTASYONU: art arda ayni tur gelmesin (10'da bir tekrar bile azalir) ---
+KONU_TURLERI = [
+    "true crime", "maritime", "aviation", "old documents", "strange object",
+    "history", "radio signal", "last phone recording", "cctv footage",
+    "unexplained photo", "lab finding", "archaeology", "cold case file",
+    "strange experiment", "cold war file", "impossible event",
+]
+_KONU_TUR_ENUM = " | ".join(KONU_TURLERI)
+
+
+def _son_farkli_turler(gecmis, n):
+    """gecmisteki SON n FARKLI konu turunu (kucuk harf, en yeniden eskiye) dondurur."""
+    tur = []
+    for k in reversed(gecmis):
+        t = (k.get("topic_type") or "").strip().lower()
+        if t and t not in tur:
+            tur.append(t)
+        if len(tur) >= n:
+            break
+    return tur
 
 
 # =========================================================
@@ -625,6 +725,8 @@ def _seo_duzenle(baslik, aciklama, etiketler, konu=""):
 def _prompt_kur(gecmis, performans, viraller, reddedilenler):
     onceki = "\n".join("- " + (k.get("topic") or "") for k in gecmis[-150:] if k.get("topic"))
     onceki_baslik = "\n".join("- " + k["title"] for k in gecmis[-40:] if k.get("title"))
+    son_turler = _son_farkli_turler(gecmis, 4)
+    tur_blok = ", ".join(son_turler) if son_turler else "(none yet)"
 
     perf_blok = ""
     if performans and performans.get("en_iyi"):
@@ -676,45 +778,59 @@ different angle on them, and must not involve the same people, ships, places or 
 Titles already used (do not echo their wording):
 {onceki_baslik if onceki_baslik else "(none yet)"}
 {red_blok}
-Pick a genuinely FRESH, SPECIFIC case. Rotate widely across: mysterious disappearances (people, ships,
-planes, whole expeditions), unsolved historical mysteries, eerie unexplained phenomena, famous cold
-cases, lost cities or treasures, strange events witnessed by many, unexplained discoveries, and
-"what really happened" cases from any country and any century. Be specific, never generic.
+--- TOPIC TYPE ROTATION (kill the "every video is the same" feeling) ---
+Choose ONE "topic_type" for this video from EXACTLY this list:
+{_KONU_TUR_ENUM}
+The last videos already used these types (MOST RECENT FIRST): {tur_blok}
+Your topic_type MUST be different from those. Rotate hard so no type repeats close together.
+This channel is NOT just "missing people" - stories about a strange object, an old document, a radio
+signal, a piece of CCTV, a lab finding, an archaeological find or a cold-war file are just as strong.
+Actively favor NON-disappearance angles.
 
---- SCRIPT RULES (spoken narration) ---
-- Language: English. Length: 60-75 words MAXIMUM (about 30-35 seconds spoken). NEVER exceed 40 seconds.
-- Pick a topic that can be FULLY told in 30-35 seconds: ONE idea, ONE payoff.
+Pick a genuinely FRESH, SPECIFIC, REAL case that fits the chosen type. Vary country and century every
+time. Be specific, never generic. It must be a case a curious viewer has almost certainly never heard.
+
+--- SCRIPT RULES (spoken narration) -- write like a Netflix / HBO true-crime doc, not an AI narrator ---
+- Language: English. Length: 60-80 words (about 30-35 seconds spoken). NEVER exceed 40 seconds.
+- Pick a case that can be FULLY told in 30-35 seconds: ONE idea, ONE payoff.
+- GOLDEN RULE - SHOW THE EVENT, DO NOT LABEL IT. Never tell the viewer a mystery happened; make them
+  feel like an invisible witness standing inside the scene, opening a classified file for the first time.
+  * WRONG: "The man vanished."   RIGHT: "The elevator reached the top floor empty."
+  * WRONG: "She disappeared."     RIGHT: "Her coffee was still warm when police arrived."
+  * WRONG: "The plane disappeared." RIGHT: "The radar signal stopped in the middle of open sky."
+- BANNED WORDS/PHRASES (they make every video sound identical - NEVER use them in script OR title):
+  vanished, disappeared, disappearance, missing, unsolved, lost forever, gone without a trace,
+  nobody knows, no one knows, the mystery remains, to this day, never found, never seen again.
+  Instead of these labels, state the concrete physical fact that proves it.
 - SENTENCE 1 IS THE HOOK and it decides everything:
-  * MAXIMUM 15 words. Ideally 8-12.
-  * Front-load the single most shocking, concrete image or fact FIRST.
-  * It must open a curiosity GAP the viewer physically needs closed.
-  * FORBIDDEN openers: "Imagine", "Today", "Welcome", "In this video", "Have you ever",
-    "Did you know", "Picture this", "What if I told you", "Here's", "So", "Once upon".
-  * Every video must use a DIFFERENT hook structure. Rotate: a stark impossible fact / a number that
-    should not exist / a single vivid image / a blunt contradiction / a named subject doing something
-    impossible.  NEVER open with a question -- measured -7.3 percentile against every other pattern.
-- Then keep tension rising. Short, punchy sentences. No filler, no throat-clearing, no summarising.
-- Every 2-3 sentences drop a new concrete detail that escalates the strangeness (this is what stops
-  people from scrolling mid-video).
-- The final 2 sentences must PAY OFF the curiosity gap with the eeriest unresolved detail, then invite
-  the viewer to watch another case on the channel. End on unease, never on a neat conclusion.
-- PERSONAL RELEVANCE -- BIGGEST MEASURED DRIVER OF SUBSCRIBERS: videos about the VIEWER convert
-  18-42 subscribers per 1000 views; videos about a purely distant object convert ZERO (one got 1404
-  views and 0 subscribers). Before the halfway point, connect the case to the viewer: "you", "your",
-  "most people". For distant subjects, land ONE line on what they would SEE, FEEL or LOSE if they
-  were there. Distance is the enemy of subscribing.
-- LIKE TRIGGER: the 30 videos with the highest like-rate convert 5.7 subs/1000; the lowest 30 convert
-  1.1 -- a 5x gap, stronger than retention. Build to ONE line at ~70% through so striking the viewer
-  wants to react. Concrete and physical, never an abstraction.
+  * MAXIMUM 15 words. Ideally 8-12. It must be a BLUNT CONTRADICTION of what should be true, stated
+    as a plain physical fact - so the viewer's brain needs the resolution.
+  * Great hooks (this energy): "The camera recorded everyone entering the building. Except one."
+    / "They had enough food to survive. They all died anyway." / "The door was locked from inside,
+    but the room was empty."
+  * DO NOT open with a name, a date, a year, a city name, "Did you know", "Imagine", or a question.
+- Then keep tension rising with short, punchy sentences. No filler, no throat-clearing, no summarising.
+- PACING - drop a NEW concrete detail every 2-3 seconds (a fact, an object, a number, a piece of
+  evidence). The viewer must never be able to guess what the next line reveals.
+- Loose beat map: 0-2s shocking contradiction | 2-8s who/where/what, briefly | 8-18s tension climbs,
+  new detail each beat | 18-28s the single most important piece of evidence | 28-35s the line that
+  stays in their head.
+- The FINAL sentence is the most disturbing concrete detail of the whole case - never a summary,
+  never "the case is still open". End on one unresolved physical fact, then it stops.
+- PERSONAL RELEVANCE (biggest measured subscriber driver): before the halfway point, land ONE line
+  that puts the VIEWER in the scene - what they would see, hear or feel standing there. Distance is
+  the enemy of subscribing.
 - NO stage directions, NO emojis, NO "[music]", NO speaker labels.
 
 --- TITLE RULES (browse CTR) ---
 - Under 70 characters, then " #Shorts".
-- If the subject HAS A NAME, put the name in the title (named subjects win search traffic).
+- Same BANNED WORDS as the script apply to the title (no "vanished", "disappeared", "missing",
+  "unsolved", "mystery remains", etc.). State the concrete shocking fact instead.
+- If the subject HAS A NAME, you may use it, but lead with the CONCRETE SHOCKING FACT, not the name.
 - WINNING FORMULA (measured on 177 sibling-channel videos, channel-internal percentile):
-  a CONCRETE NAMED SUBJECT + a relative clause stating the shocking thing it DID.
-  "The Pilot Who Vanished After Seeing THIS" / "60 People Died After Sitting in the Busby Stoop Chair".
-  Measured +12.7 percentile.
+  a CONCRETE SUBJECT + a clause stating the shocking thing that HAPPENED, phrased as a hard fact.
+  "The Elevator Reached the Top Floor Empty" / "60 People Died After Sitting in the Busby Stoop Chair"
+  / "Her Coffee Was Still Warm When Police Arrived". Measured +12.7 percentile.
 - ONE word may be ALL-CAPS for emphasis (+14.0 measured). It MUST be a POWER word (noun/verb/adjective),
   never a connector like THAT/WHO/THE.
 - Numbers and concrete quantities help (+3.6).
@@ -723,26 +839,29 @@ cases, lost cities or treasures, strange events witnessed by many, unexplained d
 
 --- THUMBNAIL TEXT ---
 - "thumbnail_text": 2 to 4 words, UPPERCASE, brutally punchy, readable at thumbnail size.
-  It must create curiosity on its own. Examples of the energy: "NINE WENT MISSING", "STILL UNEXPLAINED",
-  "NO BODIES FOUND". Do NOT just repeat the title.
+  It must create curiosity on its own. Energy: "STILL WARM", "LOCKED FROM INSIDE", "NO BODIES FOUND",
+  "SIGNAL STOPPED". Obey the banned-words rule. Do NOT just repeat the title.
 
---- VISUAL QUERIES ---
-- Give 9 to 12 SPECIFIC search phrases (3 to 6 words each) for REAL footage.
-- They MUST be listed IN THE SAME ORDER as the narration: phrase 1 matches the opening line, and each
-  next phrase matches the next thing said, evenly from start to finish, so what is on screen ALWAYS
-  matches what is being said at that moment.
-- Every phrase must be dark, eerie and cinematic: night, fog, shadows, abandoned places, storms, snow,
-  dim light, empty roads, old documents, cold isolated locations, deep water, dense forest.
-- Each phrase must describe a DIFFERENT concrete real scene.
-- STRICTLY FORBIDDEN: flowers, insects, cute animals, happy people, weddings, food, offices, bright
-  sunny nature, modern city life.
-- Good examples: "dark foggy forest night", "abandoned building interior", "snowy mountains blizzard",
-  "empty dark road at night", "old handwritten documents", "stormy ocean waves dark",
-  "misty graveyard night", "sunken shipwreck underwater".
+--- VISUAL QUERIES (storyboard - maximum quality from Pexels/Pixabay) ---
+- Give 9 to 12 PROFESSIONAL stock-footage search phrases, 3 to 6 words each. NEVER a single word
+  (not "forest" but "foggy pine forest aerial"; not "office" but "empty fluorescent office at night";
+  not "road" but "rain soaked highway at night"; not "boat" but "abandoned fishing boat at sea").
+- Build each phrase as SUBJECT + SETTING + LIGHT/WEATHER, and when useful add a shot word that stock
+  sites index well: aerial, close-up, macro, slow motion, drone shot, top down, handheld, timelapse.
+- They MUST be listed IN NARRATION ORDER: phrase 1 = the opening line, then evenly to the end, so what
+  is on screen always matches what is being said at that moment.
+- Each phrase = a DIFFERENT concrete scene, and it should point the camera at the ONE detail that
+  matters in that beat (an empty chair, a phone screen, a map, wet footprints, a CCTV monitor, an old
+  file cover, a radar screen), not a generic wide shot.
+- Mood is always dark, eerie, cinematic: night, fog, shadow, rain, snow, dim light, deep water,
+  abandoned interiors, old paper, cold isolated places.
+- STRICTLY FORBIDDEN: flowers, insects, cute animals, happy people, weddings, food, bright sunny
+  nature, modern city life, corporate stock.
 
 Return ONLY valid JSON (no markdown, no ```), EXACTLY this shape:
 {{
   "topic": "short specific topic label naming the actual case",
+  "topic_type": "exactly ONE of: {_KONU_TUR_ENUM}",
   "script": "the full narration text as one paragraph",
   "title": "catchy, curiosity-driven YouTube title under 70 characters, include #Shorts",
   "description": "2-3 sentence description, then a few relevant hashtags",
@@ -814,15 +933,16 @@ def gemini_uret(performans, viraller):
     for tur in range(1, DENEME_SAYISI + 1):
         kati = tur <= KATI_DENEME
         data = _gemini_cagir(_prompt_kur(gecmis, performans, viraller, reddedilenler))
-        konu   = (data.get("topic") or "").strip()
-        script = (data.get("script") or "").strip()
-        baslik = (data.get("title") or "").strip()
+        konu    = (data.get("topic") or "").strip()
+        script  = (data.get("script") or "").strip()
+        baslik  = (data.get("title") or "").strip()
+        aciklama = (data.get("description") or "").strip()
         if not konu or not script or not baslik:
             reddedilenler.append(konu or "(bos yanit)")
             print(f"      [{tur}] eksik alan geldi, yeniden isteniyor...")
             continue
 
-        sebep = tekrar_mi(konu, baslik, _ilk_cumle(script), gecmis, kati=kati)
+        sebep = tekrar_mi(konu, baslik, _ilk_cumle(script), gecmis, kati=kati, aciklama=aciklama)
         if sebep:
             reddedilenler.append(konu)
             print(f"      [{tur}] TEKRAR reddedildi -> {konu}  ({sebep})")
@@ -834,7 +954,20 @@ def gemini_uret(performans, viraller):
             print(f"      [{tur}] ZAYIF HOOK reddedildi -> {hsorun}")
             continue
 
-        print(f"      [{tur}] onaylandi: {konu}")
+        yk = _yasak_kelime_var(script, baslik)
+        if yk:
+            reddedilenler.append(konu)
+            print(f"      [{tur}] YASAK KELIME reddedildi -> '{yk}' (olayi anlat, etiketleme)")
+            continue
+
+        ttype = (data.get("topic_type") or "").strip().lower()
+        yasak_tur = _son_farkli_turler(gecmis, 2 if kati else 1)
+        if ttype and ttype in yasak_tur:
+            reddedilenler.append(konu)
+            print(f"      [{tur}] TUR TEKRARI reddedildi -> '{ttype}' (son turler: {yasak_tur})")
+            continue
+
+        print(f"      [{tur}] onaylandi: {konu}  [tur: {ttype or '-'}]")
         return data
 
     raise RuntimeError(
@@ -1183,6 +1316,13 @@ def _medyayi_isaretle(url):
         pass
 
 
+def _tekrarsiz_url(fn, q):
+    """Kaynak (Pexels/Pixabay) fonksiyonunu cagirir ve TEKRARSIZ bir URL dondurur.
+    Kaynaklar zaten _en_iyi_kalite icinde _KULLANILAN_MEDYA'daki (daha once kullanilmis)
+    tum URL'leri eledigi icin donen URL her zaman daha once hic kullanilmamis olandir."""
+    return fn(q, MAX_BUYUTME)
+
+
 def _keskinlestir(path):
     """
     Foto/AI gorselini videoya girmeden once profesyonellestirir:
@@ -1261,16 +1401,16 @@ def arka_plan_indir(sorgular):
     """
     global _KULLANILAN_MEDYA, _AKTIF_KONU
     umf = os.path.join(BASE_DIR, "kullanilan_gorseller.txt")
-    # KAYAN PENCERE: sadece SON 60 gorsel yasakli (~9 video). Sonsuz yasak havuzu tuketip
-    # sistemi AI gorsele dusuruyordu -> kalite dusuyordu. 60'lik pencere hem tekrar hissini
-    # onler (bir klip 9+ video boyunca donmez) hem klip havuzunu canli tutar.
-    TEKRAR_PENCERE = 60
+    # KALICI TEKRAR ENGELI: daha once HERHANGI bir videoda kullanilmis her gorsel/klip
+    # URL'si SONSUZA DEK yasakli -> ayni stok klip/foto iki farkli videoda ASLA cikmaz.
+    # (Kaynak fonksiyonlar _en_iyi_kalite icinde bu kumeyi eleme olarak kullanir. Havuz
+    #  tukendiginde zincir zaten AI gorseline duser; AI her sahnede rastgele seed ile
+    #  benzersiz gorsel urettiginden gorsel tekrari yine olusmaz.)
     _KULLANILAN_MEDYA = set()
     if os.path.exists(KULLANILAN_GORSEL_FILE):
         try:
             with open(umf, "r", encoding="utf-8") as f:
-                satirlar = [ln.strip() for ln in f if ln.strip()]
-            _KULLANILAN_MEDYA = set(satirlar[-TEKRAR_PENCERE:])
+                _KULLANILAN_MEDYA = {ln.strip() for ln in f if ln.strip()}
         except OSError:
             pass
 
@@ -1612,6 +1752,76 @@ def _font_bul():
     return FONT_PATH
 
 
+def _ffmpeg_yolu():
+    """moviepy'nin kullandigi ffmpeg binary'sini bulur (PATH'te olmasa da calisir)."""
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
+
+def _sinematik_pas(giris, cikis):
+    """
+    FAZ 2: Ham videoya tek FFmpeg pasi ile sinematik katman uygular.
+      - soguk belgesel gradesi (eq + colorbalance)
+      - film grain (noise, temporal = hafif dogal flicker/arsiv hissi)
+      - vignette (kenar karartma)
+      - anlatim altina lavfi ile SENTEZLENEN derin ambient ugultu (asset gerektirmez)
+      - VHS=1 ise ek analog doku (renk kaymasi + dusuk doygunluk)
+    En zengin zincirden en sadeye dogru geriler; hicbiri olmazsa hata firlatir
+    (caller ham videoyu kullanir, hat kirilmaz).
+    """
+    import subprocess
+    ff = _ffmpeg_yolu()
+    grade = "eq=contrast=1.06:saturation=0.90:brightness=-0.015:gamma=0.98"
+    cold  = "colorbalance=rs=-0.03:gs=-0.01:bs=0.05:rm=-0.02:bm=0.03"
+    grain = f"noise=alls={max(0, SINEMATIK_GRAIN)}:allf=t"
+    vig   = "vignette=angle=PI/5"
+
+    def _vf(vhs):
+        parca = ["format=yuv420p", grade, cold]
+        if vhs:
+            parca += ["rgbashift=rh=3:bh=-3", "eq=saturation=0.82"]
+        parca += [grain, vig]
+        return ",".join(parca)
+
+    enc = ["-c:v", "libx264", "-preset", X264_PRESET, "-b:v", VIDEO_BITRATE,
+           "-pix_fmt", "yuv420p", "-profile:v", "high", "-level", "4.2",
+           "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-movflags", "+faststart"]
+
+    # (ses_modu, vhs) en zenginden en sadeye - biri patlarsa bir alttakine gecilir
+    denemeler = []
+    if AMBIENT_SES:
+        denemeler.append(("ambient", VHS_MOD))
+        if VHS_MOD:
+            denemeler.append(("ambient", False))
+    denemeler.append(("sessiz", VHS_MOD))
+    if VHS_MOD:
+        denemeler.append(("sessiz", False))
+
+    son_hata = None
+    for ses, vhs in denemeler:
+        vf = _vf(vhs)
+        if ses == "ambient":
+            fc = (f"[0:v]{vf}[v];"
+                  f"[1:a]volume={AMBIENT_VOL},highpass=f=30,lowpass=f=170[amb];"
+                  "[0:a][amb]amix=inputs=2:duration=first:dropout_transition=0[a]")
+            komut = ([ff, "-y", "-i", giris,
+                      "-f", "lavfi", "-i", "anoisesrc=color=brown:amplitude=0.9:seed=7",
+                      "-filter_complex", fc, "-map", "[v]", "-map", "[a]"]
+                     + enc + ["-shortest", cikis])
+        else:
+            komut = [ff, "-y", "-i", giris, "-vf", vf, "-map", "0:v", "-map", "0:a?"] + enc + [cikis]
+        try:
+            subprocess.run(komut, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            return (ses, vhs)
+        except subprocess.CalledProcessError as e:
+            son_hata = (e.stderr or b"").decode("utf-8", "ignore")[-300:]
+            continue
+    raise RuntimeError("tum sinematik zincir denemeleri basarisiz: " + (son_hata or "bilinmeyen hata"))
+
+
 def video_olustur(words, medya, out_path):
     from moviepy import AudioFileClip, CompositeVideoClip
 
@@ -1640,8 +1850,10 @@ def video_olustur(words, medya, out_path):
         final = CompositeVideoClip([bg, *altyazilar, *marka], size=(W, H))
     final = final.with_audio(audio).with_duration(dur)
 
+    # SINEMATIK acikken once HAM dosyaya yaz, sonra FFmpeg sinematik pasi out_path'e yazsin.
+    ham = (out_path + ".raw.mp4") if SINEMATIK else out_path
     final.write_videofile(
-        out_path,
+        ham,
         fps=FPS,
         codec="libx264",
         audio_codec="aac",
@@ -1656,6 +1868,20 @@ def video_olustur(words, medya, out_path):
     audio.close()
     bg.close()
     final.close()
+
+    # --- FAZ 2: sinematik son-islem pasi (grade + grain + vignette + ambient) ---
+    if SINEMATIK:
+        try:
+            ses, vhs = _sinematik_pas(ham, out_path)
+            try:
+                os.remove(ham)
+            except OSError:
+                pass
+            print(f"  Sinematik pas uygulandi: grade + grain + vignette"
+                  f"{' + VHS' if vhs else ''}{' + ambient ugultu' if ses == 'ambient' else ''}.")
+        except Exception as e:
+            print("  (sinematik pas atlandi, ham video kullaniliyor:", str(e)[:200], ")")
+            os.replace(ham, out_path)
 
 
 # =========================================================
@@ -1932,6 +2158,8 @@ def main():
         gecmise_ekle({
             "topic": konu,
             "title": baslik,
+            "description": (data.get("description") or "").strip(),
+            "topic_type": (data.get("topic_type") or "").strip(),
             "hook": _ilk_cumle(script),
             "tarih": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M"),
             "video_id": video_id,

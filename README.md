@@ -66,13 +66,74 @@ Uc katman:
    sifirdan basliyor ve ayni vakalari tekrar anlatiyordu. Asil tekrar sebebi buydu.)
 2. **Kanaldan tohumlama** - ilk kosuda YouTube'daki **zaten yayinlanmis** video basliklarini da
    hafizaya ekler. Yani `gecmis.json` olusmadan once yuklenmis hikayeler de tekrar edilmez.
-3. **Kod tarafinda dogrulama** - Gemini'nin onerdigi konu, gecmistekilerle ayni **vaka adini**
-   (`dyatlov`, `roanoke`, `celeste` gibi ayirt edici kelimeler) tasiyorsa reddedilir ve yeniden
-   uretim istenir. 8 denemeye kadar surer. Hicbir benzersiz fikir cikmazsa kosu **bilerek iptal
-   edilir** - tekrar video yayinlamaktansa o kosuyu atlamak tercih edilir.
+3. **Kod tarafinda dogrulama** - Gemini'nin onerdigi fikir su dordunden herhangi biriyle
+   cakisirsa reddedilir ve yeniden uretim istenir (8 denemeye kadar):
+   - **Konu / vaka adi**: gecmistekilerle ayni **vaka adini** (`dyatlov`, `roanoke`, `celeste`
+     gibi ayirt edici kelimeler) tasiyorsa -> ayni hikaye.
+   - **Baslik**: gecmisteki bir baslikla birebir (normalize edilmis) ayni ya da cok benzer olamaz.
+     Ayni baslik ASLA iki kez cikmaz - hem ilk (siki) hem son (gevsek) denemelerde uygulanir.
+   - **Aciklama**: gecmisteki bir aciklamayla birebir ayni ya da cok benzer olamaz. Bu yuzden
+     aciklama metni de `gecmis.json`'a (SEO'suz ham hali) yazilir ve karsilastirilir.
+   - **Hook**: acilis cumlesi gecmistekiyle cok benzerse reddedilir.
+
+   Hicbir benzersiz fikir cikmazsa kosu **bilerek iptal edilir** - tekrar video yayinlamaktansa
+   o kosuyu atlamak tercih edilir.
+
+4. **Gorseller asla tekrar etmez** - her kullanilan klip/foto URL'si `kullanilan_gorseller.txt`'e
+   yazilir ve **tum gecmis kalici olarak yasaklidir** (eski surumdeki 60'lik kayan pencere
+   kaldirildi). Ayni stok klip/foto iki farkli videoda bir daha gorunmez; kaynak havuzu
+   tukendiginde sistem, her sahnede rastgele seed ile **benzersiz** AI gorseli uretmeye duser.
 
 `expedition`, `shipwreck` gibi yaygin kelimelerin ortak olmasi tek basina red sebebi degildir;
-sadece ayirt edici ozel isimler tekrari tetikler.
+sadece ayirt edici ozel isimler tekrari tetikler. Not: sistem bilerek **siki** taraftadir -
+ara sira gercekten ozgun bir konuyu da reddedebilir; bunun bedeli tek bir yeniden-uretim
+denemesidir, buna karsilik hicbir konu/baslik/aciklama/gorsel iki kez yayina cikmaz.
+
+---
+
+## Yaratici yon: videolar birbirine benzemesin (Faz 1)
+
+Amac, siradan AI Shorts'undan cikip belgesel tonuna gecmek. Senaryo asamasinda su kurallar
+hem Gemini prompt'una yazili hem de **kod tarafinda zorunlu** (ihlal edilirse fikir reddedilip
+yeniden uretilir):
+
+1. **Klise kelime yasagi** - `vanished, disappeared, missing, unsolved, lost forever,
+   gone without a trace, nobody knows, to this day, never found, never seen again...` script ve
+   baslikta YASAK. Bunun yerine olayi ETIKETLEME, olayin somut fiziksel gercegini anlat:
+   "The man vanished" degil -> "The elevator reached the top floor empty."
+2. **Celiski ile acilis** - ilk cumle isimle, tarihle, sehir adiyla, soruyla ya da "Did you know"
+   ile baslayamaz. Dogrudan, izleyicinin beynini durduran bir CELISKI olmali. (Kod; yil/ay ile
+   baslamayi, soru ile baslamayi ve klise kaliplari reddeder.)
+3. **Konu turu rotasyonu** - her video 16 turden birini secer (`true crime, maritime, aviation,
+   old documents, strange object, radio signal, cctv footage, lab finding, cold war file...`) ve
+   turu son videolarinkiyle ayni olamaz. Boylece art arda "kaybolan insan" videolari uretilmez.
+   Secilen tur `gecmis.json`'a yazilip rotasyon takip edilir.
+4. **Profesyonel gorsel sorgular** - tek kelime yasak. Her sahne icin `SUBJECT + SETTING +
+   LIGHT/WEATHER` kalibinda, gerektiginde `aerial/close-up/macro/drone shot` gibi cekim kelimeleriyle,
+   anlatim sirasina dizili, o an konusulan tek onemli detaya odaklanan aramalar.
+
+### Faz 2: sinematik render katmani (aktif)
+
+Video kurulduktan sonra ham dosyaya **tek bir FFmpeg son-islem pasi** uygulanir (`_sinematik_pas`):
+
+- **Soguk belgesel gradesi** - `eq` + `colorbalance` ile hafif kontrast, dusuk doygunluk, soguk ton.
+- **Film grain** - `noise` (temporal); dogal bir titreme/arsiv dokusu verir, "AI slop" hissini kirar.
+- **Vignette** - kenar karartma, dikkat merkeze toplanir.
+- **Ambient ugultu** - anlatimin cok altinda, FFmpeg `anoisesrc` (brown noise) ile **sentezlenen**
+  derin bir ses yatagi. Harici ses asseti gerektirmez.
+
+Pas, en zengin zincirden en sadeye dogru geriler; hicbir varyant calismazsa ham video oldugu gibi
+kullanilir, yani render hatti asla kirilmaz. `imageio-ffmpeg`'in getirdigi ffmpeg binary'si kullanilir.
+
+Ortam degiskenleriyle ayarlanir:
+
+| Degisken | Varsayilan | Ne yapar |
+|---|---|---|
+| `SINEMATIK` | `1` | Sinematik pasi ac/kapat (`0` = ham video) |
+| `SINEMATIK_GRAIN` | `7` | Film grain siddeti (0-20) |
+| `AMBIENT_SES` | `1` | Ambient ugultu ses yatagi |
+| `AMBIENT_VOL` | `0.16` | Ambient sesin seviyesi (anlatimin altinda kalmali) |
+| `VHS` | `0` | Opsiyonel analog doku (renk kaymasi + dusuk doygunluk); arsiv/CCTV hissi |
 
 ---
 
