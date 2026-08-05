@@ -91,6 +91,32 @@ denemesidir, buna karsilik hicbir konu/baslik/aciklama/gorsel iki kez yayina cik
 
 ---
 
+## Yaratici yon: videolar birbirine benzemesin (Faz 1)
+
+Amac, siradan AI Shorts'undan cikip belgesel tonuna gecmek. Senaryo asamasinda su kurallar
+hem Gemini prompt'una yazili hem de **kod tarafinda zorunlu** (ihlal edilirse fikir reddedilip
+yeniden uretilir):
+
+1. **Klise kelime yasagi** - `vanished, disappeared, missing, unsolved, lost forever,
+   gone without a trace, nobody knows, to this day, never found, never seen again...` script ve
+   baslikta YASAK. Bunun yerine olayi ETIKETLEME, olayin somut fiziksel gercegini anlat:
+   "The man vanished" degil -> "The elevator reached the top floor empty."
+2. **Celiski ile acilis** - ilk cumle isimle, tarihle, sehir adiyla, soruyla ya da "Did you know"
+   ile baslayamaz. Dogrudan, izleyicinin beynini durduran bir CELISKI olmali. (Kod; yil/ay ile
+   baslamayi, soru ile baslamayi ve klise kaliplari reddeder.)
+3. **Konu turu rotasyonu** - her video 16 turden birini secer (`true crime, maritime, aviation,
+   old documents, strange object, radio signal, cctv footage, lab finding, cold war file...`) ve
+   turu son videolarinkiyle ayni olamaz. Boylece art arda "kaybolan insan" videolari uretilmez.
+   Secilen tur `gecmis.json`'a yazilip rotasyon takip edilir.
+4. **Profesyonel gorsel sorgular** - tek kelime yasak. Her sahne icin `SUBJECT + SETTING +
+   LIGHT/WEATHER` kalibinda, gerektiginde `aerial/close-up/macro/drone shot` gibi cekim kelimeleriyle,
+   anlatim sirasina dizili, o an konusulan tek onemli detaya odaklanan aramalar.
+
+> Faz 2 (planlandi, henuz yok): FFmpeg ile sinematik render katmani - film grain + vignette + renk
+> gradesi, isik titremesi / VHS-CRT dokusu ve anlatim altina ambient ses yatagi.
+
+---
+
 ## Kendini gelistirme
 
 Her kosuda, senaryo yazilmadan once:

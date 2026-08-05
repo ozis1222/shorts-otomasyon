@@ -388,7 +388,9 @@ def _ilk_cumle(metin):
 
 
 def hook_sorunu(script):
-    """Hook zayifsa sebebini doner, saglamsa None."""
+    """Hook zayifsa sebebini doner, saglamsa None.
+    Ilk cumle videonun kaderidir. Reddedilir: cok uzun/kisa, klise kalip, SORU ile
+    acilis, ya da TARIH (yil/ay) ile acilis. Hedef: dogrudan CELISKI ile baslamak."""
     hook = _ilk_cumle(script)
     if not hook:
         return "senaryo bos"
@@ -401,7 +403,66 @@ def hook_sorunu(script):
     for y in _YASAK_HOOK_BAS:
         if dusuk.startswith(y):
             return f"hook yasak kalipla basliyor: '{y.strip()}'"
+    # SORU ile acilis yasak: izleyiciyi durduran sey cevap degil, celiskidir
+    if hook.rstrip().endswith("?"):
+        return "hook soru ile aciliyor (celiski ile acilmali)"
+    # TARIH ile acilis yasak: 'In 1972,' / 'On March 3,' / '1972 ...'
+    if re.match(r"^(in|on|by|during|back in)\s+(the\s+)?(17|18|19|20)\d\d\b", dusuk):
+        return "hook tarihle (yil) aciliyor"
+    if re.match(r"^(in|on)\s+(january|february|march|april|may|june|july|august|"
+                r"september|october|november|december)\b", dusuk):
+        return "hook tarihle (ay) aciliyor"
+    if re.match(r"^(17|18|19|20)\d\d\b", dusuk):
+        return "hook yil ile aciliyor"
     return None
+
+
+# --- ASIRI KULLANILAN KELIME / KLISE YASAGI ---
+# Kanal 'hep ayni video' gibi gorunmesin diye: olayi ETIKETLEME, olayin kendisini anlat.
+# Asagidaki kelime/kaliplar SCRIPT ve BASLIKTA yasak; gecerse fikir yeniden uretilir.
+YASAK_KELIMELER = [
+    "vanished", "vanish", "vanishes", "vanishing",
+    "disappeared", "disappear", "disappears", "disappearance", "disappearances",
+    "unsolved", "missing",
+    "lost forever", "gone without a trace", "without a trace",
+    "nobody knows", "no one knows", "the mystery remains", "remains a mystery",
+    "to this day", "never found", "never seen again", "never to be seen",
+]
+
+
+def _yasak_kelime_var(*metinler):
+    """Metinlerde asiri kullanilan klise kelime/kalip varsa ilkini, yoksa None doner.
+    Tek kelimeler kelime-siniriyla, bosluklu kaliplar dogrudan aranir."""
+    bir = " ".join((m or "") for m in metinler).lower()
+    for k in YASAK_KELIMELER:
+        if " " in k:
+            if k in bir:
+                return k
+        elif re.search(r"\b" + re.escape(k) + r"\b", bir):
+            return k
+    return None
+
+
+# --- KONU TURU ROTASYONU: art arda ayni tur gelmesin (10'da bir tekrar bile azalir) ---
+KONU_TURLERI = [
+    "true crime", "maritime", "aviation", "old documents", "strange object",
+    "history", "radio signal", "last phone recording", "cctv footage",
+    "unexplained photo", "lab finding", "archaeology", "cold case file",
+    "strange experiment", "cold war file", "impossible event",
+]
+_KONU_TUR_ENUM = " | ".join(KONU_TURLERI)
+
+
+def _son_farkli_turler(gecmis, n):
+    """gecmisteki SON n FARKLI konu turunu (kucuk harf, en yeniden eskiye) dondurur."""
+    tur = []
+    for k in reversed(gecmis):
+        t = (k.get("topic_type") or "").strip().lower()
+        if t and t not in tur:
+            tur.append(t)
+        if len(tur) >= n:
+            break
+    return tur
 
 
 # =========================================================
@@ -653,6 +714,8 @@ def _seo_duzenle(baslik, aciklama, etiketler, konu=""):
 def _prompt_kur(gecmis, performans, viraller, reddedilenler):
     onceki = "\n".join("- " + (k.get("topic") or "") for k in gecmis[-150:] if k.get("topic"))
     onceki_baslik = "\n".join("- " + k["title"] for k in gecmis[-40:] if k.get("title"))
+    son_turler = _son_farkli_turler(gecmis, 4)
+    tur_blok = ", ".join(son_turler) if son_turler else "(none yet)"
 
     perf_blok = ""
     if performans and performans.get("en_iyi"):
@@ -704,45 +767,59 @@ different angle on them, and must not involve the same people, ships, places or 
 Titles already used (do not echo their wording):
 {onceki_baslik if onceki_baslik else "(none yet)"}
 {red_blok}
-Pick a genuinely FRESH, SPECIFIC case. Rotate widely across: mysterious disappearances (people, ships,
-planes, whole expeditions), unsolved historical mysteries, eerie unexplained phenomena, famous cold
-cases, lost cities or treasures, strange events witnessed by many, unexplained discoveries, and
-"what really happened" cases from any country and any century. Be specific, never generic.
+--- TOPIC TYPE ROTATION (kill the "every video is the same" feeling) ---
+Choose ONE "topic_type" for this video from EXACTLY this list:
+{_KONU_TUR_ENUM}
+The last videos already used these types (MOST RECENT FIRST): {tur_blok}
+Your topic_type MUST be different from those. Rotate hard so no type repeats close together.
+This channel is NOT just "missing people" - stories about a strange object, an old document, a radio
+signal, a piece of CCTV, a lab finding, an archaeological find or a cold-war file are just as strong.
+Actively favor NON-disappearance angles.
 
---- SCRIPT RULES (spoken narration) ---
-- Language: English. Length: 60-75 words MAXIMUM (about 30-35 seconds spoken). NEVER exceed 40 seconds.
-- Pick a topic that can be FULLY told in 30-35 seconds: ONE idea, ONE payoff.
+Pick a genuinely FRESH, SPECIFIC, REAL case that fits the chosen type. Vary country and century every
+time. Be specific, never generic. It must be a case a curious viewer has almost certainly never heard.
+
+--- SCRIPT RULES (spoken narration) -- write like a Netflix / HBO true-crime doc, not an AI narrator ---
+- Language: English. Length: 60-80 words (about 30-35 seconds spoken). NEVER exceed 40 seconds.
+- Pick a case that can be FULLY told in 30-35 seconds: ONE idea, ONE payoff.
+- GOLDEN RULE - SHOW THE EVENT, DO NOT LABEL IT. Never tell the viewer a mystery happened; make them
+  feel like an invisible witness standing inside the scene, opening a classified file for the first time.
+  * WRONG: "The man vanished."   RIGHT: "The elevator reached the top floor empty."
+  * WRONG: "She disappeared."     RIGHT: "Her coffee was still warm when police arrived."
+  * WRONG: "The plane disappeared." RIGHT: "The radar signal stopped in the middle of open sky."
+- BANNED WORDS/PHRASES (they make every video sound identical - NEVER use them in script OR title):
+  vanished, disappeared, disappearance, missing, unsolved, lost forever, gone without a trace,
+  nobody knows, no one knows, the mystery remains, to this day, never found, never seen again.
+  Instead of these labels, state the concrete physical fact that proves it.
 - SENTENCE 1 IS THE HOOK and it decides everything:
-  * MAXIMUM 15 words. Ideally 8-12.
-  * Front-load the single most shocking, concrete image or fact FIRST.
-  * It must open a curiosity GAP the viewer physically needs closed.
-  * FORBIDDEN openers: "Imagine", "Today", "Welcome", "In this video", "Have you ever",
-    "Did you know", "Picture this", "What if I told you", "Here's", "So", "Once upon".
-  * Every video must use a DIFFERENT hook structure. Rotate: a stark impossible fact / a number that
-    should not exist / a single vivid image / a blunt contradiction / a named subject doing something
-    impossible.  NEVER open with a question -- measured -7.3 percentile against every other pattern.
-- Then keep tension rising. Short, punchy sentences. No filler, no throat-clearing, no summarising.
-- Every 2-3 sentences drop a new concrete detail that escalates the strangeness (this is what stops
-  people from scrolling mid-video).
-- The final 2 sentences must PAY OFF the curiosity gap with the eeriest unresolved detail, then invite
-  the viewer to watch another case on the channel. End on unease, never on a neat conclusion.
-- PERSONAL RELEVANCE -- BIGGEST MEASURED DRIVER OF SUBSCRIBERS: videos about the VIEWER convert
-  18-42 subscribers per 1000 views; videos about a purely distant object convert ZERO (one got 1404
-  views and 0 subscribers). Before the halfway point, connect the case to the viewer: "you", "your",
-  "most people". For distant subjects, land ONE line on what they would SEE, FEEL or LOSE if they
-  were there. Distance is the enemy of subscribing.
-- LIKE TRIGGER: the 30 videos with the highest like-rate convert 5.7 subs/1000; the lowest 30 convert
-  1.1 -- a 5x gap, stronger than retention. Build to ONE line at ~70% through so striking the viewer
-  wants to react. Concrete and physical, never an abstraction.
+  * MAXIMUM 15 words. Ideally 8-12. It must be a BLUNT CONTRADICTION of what should be true, stated
+    as a plain physical fact - so the viewer's brain needs the resolution.
+  * Great hooks (this energy): "The camera recorded everyone entering the building. Except one."
+    / "They had enough food to survive. They all died anyway." / "The door was locked from inside,
+    but the room was empty."
+  * DO NOT open with a name, a date, a year, a city name, "Did you know", "Imagine", or a question.
+- Then keep tension rising with short, punchy sentences. No filler, no throat-clearing, no summarising.
+- PACING - drop a NEW concrete detail every 2-3 seconds (a fact, an object, a number, a piece of
+  evidence). The viewer must never be able to guess what the next line reveals.
+- Loose beat map: 0-2s shocking contradiction | 2-8s who/where/what, briefly | 8-18s tension climbs,
+  new detail each beat | 18-28s the single most important piece of evidence | 28-35s the line that
+  stays in their head.
+- The FINAL sentence is the most disturbing concrete detail of the whole case - never a summary,
+  never "the case is still open". End on one unresolved physical fact, then it stops.
+- PERSONAL RELEVANCE (biggest measured subscriber driver): before the halfway point, land ONE line
+  that puts the VIEWER in the scene - what they would see, hear or feel standing there. Distance is
+  the enemy of subscribing.
 - NO stage directions, NO emojis, NO "[music]", NO speaker labels.
 
 --- TITLE RULES (browse CTR) ---
 - Under 70 characters, then " #Shorts".
-- If the subject HAS A NAME, put the name in the title (named subjects win search traffic).
+- Same BANNED WORDS as the script apply to the title (no "vanished", "disappeared", "missing",
+  "unsolved", "mystery remains", etc.). State the concrete shocking fact instead.
+- If the subject HAS A NAME, you may use it, but lead with the CONCRETE SHOCKING FACT, not the name.
 - WINNING FORMULA (measured on 177 sibling-channel videos, channel-internal percentile):
-  a CONCRETE NAMED SUBJECT + a relative clause stating the shocking thing it DID.
-  "The Pilot Who Vanished After Seeing THIS" / "60 People Died After Sitting in the Busby Stoop Chair".
-  Measured +12.7 percentile.
+  a CONCRETE SUBJECT + a clause stating the shocking thing that HAPPENED, phrased as a hard fact.
+  "The Elevator Reached the Top Floor Empty" / "60 People Died After Sitting in the Busby Stoop Chair"
+  / "Her Coffee Was Still Warm When Police Arrived". Measured +12.7 percentile.
 - ONE word may be ALL-CAPS for emphasis (+14.0 measured). It MUST be a POWER word (noun/verb/adjective),
   never a connector like THAT/WHO/THE.
 - Numbers and concrete quantities help (+3.6).
@@ -751,26 +828,29 @@ cases, lost cities or treasures, strange events witnessed by many, unexplained d
 
 --- THUMBNAIL TEXT ---
 - "thumbnail_text": 2 to 4 words, UPPERCASE, brutally punchy, readable at thumbnail size.
-  It must create curiosity on its own. Examples of the energy: "NINE WENT MISSING", "STILL UNEXPLAINED",
-  "NO BODIES FOUND". Do NOT just repeat the title.
+  It must create curiosity on its own. Energy: "STILL WARM", "LOCKED FROM INSIDE", "NO BODIES FOUND",
+  "SIGNAL STOPPED". Obey the banned-words rule. Do NOT just repeat the title.
 
---- VISUAL QUERIES ---
-- Give 9 to 12 SPECIFIC search phrases (3 to 6 words each) for REAL footage.
-- They MUST be listed IN THE SAME ORDER as the narration: phrase 1 matches the opening line, and each
-  next phrase matches the next thing said, evenly from start to finish, so what is on screen ALWAYS
-  matches what is being said at that moment.
-- Every phrase must be dark, eerie and cinematic: night, fog, shadows, abandoned places, storms, snow,
-  dim light, empty roads, old documents, cold isolated locations, deep water, dense forest.
-- Each phrase must describe a DIFFERENT concrete real scene.
-- STRICTLY FORBIDDEN: flowers, insects, cute animals, happy people, weddings, food, offices, bright
-  sunny nature, modern city life.
-- Good examples: "dark foggy forest night", "abandoned building interior", "snowy mountains blizzard",
-  "empty dark road at night", "old handwritten documents", "stormy ocean waves dark",
-  "misty graveyard night", "sunken shipwreck underwater".
+--- VISUAL QUERIES (storyboard - maximum quality from Pexels/Pixabay) ---
+- Give 9 to 12 PROFESSIONAL stock-footage search phrases, 3 to 6 words each. NEVER a single word
+  (not "forest" but "foggy pine forest aerial"; not "office" but "empty fluorescent office at night";
+  not "road" but "rain soaked highway at night"; not "boat" but "abandoned fishing boat at sea").
+- Build each phrase as SUBJECT + SETTING + LIGHT/WEATHER, and when useful add a shot word that stock
+  sites index well: aerial, close-up, macro, slow motion, drone shot, top down, handheld, timelapse.
+- They MUST be listed IN NARRATION ORDER: phrase 1 = the opening line, then evenly to the end, so what
+  is on screen always matches what is being said at that moment.
+- Each phrase = a DIFFERENT concrete scene, and it should point the camera at the ONE detail that
+  matters in that beat (an empty chair, a phone screen, a map, wet footprints, a CCTV monitor, an old
+  file cover, a radar screen), not a generic wide shot.
+- Mood is always dark, eerie, cinematic: night, fog, shadow, rain, snow, dim light, deep water,
+  abandoned interiors, old paper, cold isolated places.
+- STRICTLY FORBIDDEN: flowers, insects, cute animals, happy people, weddings, food, bright sunny
+  nature, modern city life, corporate stock.
 
 Return ONLY valid JSON (no markdown, no ```), EXACTLY this shape:
 {{
   "topic": "short specific topic label naming the actual case",
+  "topic_type": "exactly ONE of: {_KONU_TUR_ENUM}",
   "script": "the full narration text as one paragraph",
   "title": "catchy, curiosity-driven YouTube title under 70 characters, include #Shorts",
   "description": "2-3 sentence description, then a few relevant hashtags",
@@ -863,7 +943,20 @@ def gemini_uret(performans, viraller):
             print(f"      [{tur}] ZAYIF HOOK reddedildi -> {hsorun}")
             continue
 
-        print(f"      [{tur}] onaylandi: {konu}")
+        yk = _yasak_kelime_var(script, baslik)
+        if yk:
+            reddedilenler.append(konu)
+            print(f"      [{tur}] YASAK KELIME reddedildi -> '{yk}' (olayi anlat, etiketleme)")
+            continue
+
+        ttype = (data.get("topic_type") or "").strip().lower()
+        yasak_tur = _son_farkli_turler(gecmis, 2 if kati else 1)
+        if ttype and ttype in yasak_tur:
+            reddedilenler.append(konu)
+            print(f"      [{tur}] TUR TEKRARI reddedildi -> '{ttype}' (son turler: {yasak_tur})")
+            continue
+
+        print(f"      [{tur}] onaylandi: {konu}  [tur: {ttype or '-'}]")
         return data
 
     raise RuntimeError(
@@ -1969,6 +2062,7 @@ def main():
             "topic": konu,
             "title": baslik,
             "description": (data.get("description") or "").strip(),
+            "topic_type": (data.get("topic_type") or "").strip(),
             "hook": _ilk_cumle(script),
             "tarih": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M"),
             "video_id": video_id,
