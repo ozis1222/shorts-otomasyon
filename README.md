@@ -112,8 +112,28 @@ yeniden uretilir):
    LIGHT/WEATHER` kalibinda, gerektiginde `aerial/close-up/macro/drone shot` gibi cekim kelimeleriyle,
    anlatim sirasina dizili, o an konusulan tek onemli detaya odaklanan aramalar.
 
-> Faz 2 (planlandi, henuz yok): FFmpeg ile sinematik render katmani - film grain + vignette + renk
-> gradesi, isik titremesi / VHS-CRT dokusu ve anlatim altina ambient ses yatagi.
+### Faz 2: sinematik render katmani (aktif)
+
+Video kurulduktan sonra ham dosyaya **tek bir FFmpeg son-islem pasi** uygulanir (`_sinematik_pas`):
+
+- **Soguk belgesel gradesi** - `eq` + `colorbalance` ile hafif kontrast, dusuk doygunluk, soguk ton.
+- **Film grain** - `noise` (temporal); dogal bir titreme/arsiv dokusu verir, "AI slop" hissini kirar.
+- **Vignette** - kenar karartma, dikkat merkeze toplanir.
+- **Ambient ugultu** - anlatimin cok altinda, FFmpeg `anoisesrc` (brown noise) ile **sentezlenen**
+  derin bir ses yatagi. Harici ses asseti gerektirmez.
+
+Pas, en zengin zincirden en sadeye dogru geriler; hicbir varyant calismazsa ham video oldugu gibi
+kullanilir, yani render hatti asla kirilmaz. `imageio-ffmpeg`'in getirdigi ffmpeg binary'si kullanilir.
+
+Ortam degiskenleriyle ayarlanir:
+
+| Degisken | Varsayilan | Ne yapar |
+|---|---|---|
+| `SINEMATIK` | `1` | Sinematik pasi ac/kapat (`0` = ham video) |
+| `SINEMATIK_GRAIN` | `7` | Film grain siddeti (0-20) |
+| `AMBIENT_SES` | `1` | Ambient ugultu ses yatagi |
+| `AMBIENT_VOL` | `0.16` | Ambient sesin seviyesi (anlatimin altinda kalmali) |
+| `VHS` | `0` | Opsiyonel analog doku (renk kaymasi + dusuk doygunluk); arsiv/CCTV hissi |
 
 ---
 

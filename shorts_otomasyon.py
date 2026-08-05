@@ -95,6 +95,17 @@ AUDIO_BITRATE     = "192k"
 # 'medium': acik bitrate zaten yuksek oldugu icin 'slow'a gore gozle gorulur kalite farki
 # yok, ama 2 cekirdekli Actions makinesinde kodlama suresini yariya indiriyor.
 X264_PRESET       = os.environ.get("X264_PRESET") or "medium"
+
+# --- FAZ 2: SINEMATIK RENDER KATMANI (FFmpeg son-islem pasi) ---
+# Render bitince ham videoya tek bir FFmpeg pasi uygulanir: soguk belgesel gradesi +
+# film grain (temporal = hafif dogal flicker) + vignette, ve anlatim altina lavfi ile
+# SENTEZLENEN (asset gerektirmeyen) derin ambient ugultu. Pas coker ozel bir durumda
+# ham video oldugu gibi kullanilir -> hat asla kirilmaz.
+SINEMATIK      = os.environ.get("SINEMATIK", "1") != "0"     # grade + grain + vignette
+SINEMATIK_GRAIN = int(os.environ.get("SINEMATIK_GRAIN") or 7)  # 0-20; film grain siddeti
+AMBIENT_SES    = os.environ.get("AMBIENT_SES", "1") != "0"   # derin ugultu ses yatagi
+AMBIENT_VOL    = os.environ.get("AMBIENT_VOL") or "0.16"     # anlatimin cok altinda kalsin
+VHS_MOD        = os.environ.get("VHS", "0") == "1"           # opsiyonel: arsiv/CCTV analog doku
 # Bir kaynak, 1080x1920'yi doldurmak icin en fazla bu kadar BUYUTULEBILIR.
 # 1.0 = hic buyutme yok (birebir/kucultme). 1.25 = en fazla %25 buyutme.
 MAX_BUYUTME       = 1.25    # 1. tercih: gercek klip, kristal net
@@ -1741,6 +1752,76 @@ def _font_bul():
     return FONT_PATH
 
 
+def _ffmpeg_yolu():
+    """moviepy'nin kullandigi ffmpeg binary'sini bulur (PATH'te olmasa da calisir)."""
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
+
+def _sinematik_pas(giris, cikis):
+    """
+    FAZ 2: Ham videoya tek FFmpeg pasi ile sinematik katman uygular.
+      - soguk belgesel gradesi (eq + colorbalance)
+      - film grain (noise, temporal = hafif dogal flicker/arsiv hissi)
+      - vignette (kenar karartma)
+      - anlatim altina lavfi ile SENTEZLENEN derin ambient ugultu (asset gerektirmez)
+      - VHS=1 ise ek analog doku (renk kaymasi + dusuk doygunluk)
+    En zengin zincirden en sadeye dogru geriler; hicbiri olmazsa hata firlatir
+    (caller ham videoyu kullanir, hat kirilmaz).
+    """
+    import subprocess
+    ff = _ffmpeg_yolu()
+    grade = "eq=contrast=1.06:saturation=0.90:brightness=-0.015:gamma=0.98"
+    cold  = "colorbalance=rs=-0.03:gs=-0.01:bs=0.05:rm=-0.02:bm=0.03"
+    grain = f"noise=alls={max(0, SINEMATIK_GRAIN)}:allf=t"
+    vig   = "vignette=angle=PI/5"
+
+    def _vf(vhs):
+        parca = ["format=yuv420p", grade, cold]
+        if vhs:
+            parca += ["rgbashift=rh=3:bh=-3", "eq=saturation=0.82"]
+        parca += [grain, vig]
+        return ",".join(parca)
+
+    enc = ["-c:v", "libx264", "-preset", X264_PRESET, "-b:v", VIDEO_BITRATE,
+           "-pix_fmt", "yuv420p", "-profile:v", "high", "-level", "4.2",
+           "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-movflags", "+faststart"]
+
+    # (ses_modu, vhs) en zenginden en sadeye - biri patlarsa bir alttakine gecilir
+    denemeler = []
+    if AMBIENT_SES:
+        denemeler.append(("ambient", VHS_MOD))
+        if VHS_MOD:
+            denemeler.append(("ambient", False))
+    denemeler.append(("sessiz", VHS_MOD))
+    if VHS_MOD:
+        denemeler.append(("sessiz", False))
+
+    son_hata = None
+    for ses, vhs in denemeler:
+        vf = _vf(vhs)
+        if ses == "ambient":
+            fc = (f"[0:v]{vf}[v];"
+                  f"[1:a]volume={AMBIENT_VOL},highpass=f=30,lowpass=f=170[amb];"
+                  "[0:a][amb]amix=inputs=2:duration=first:dropout_transition=0[a]")
+            komut = ([ff, "-y", "-i", giris,
+                      "-f", "lavfi", "-i", "anoisesrc=color=brown:amplitude=0.9:seed=7",
+                      "-filter_complex", fc, "-map", "[v]", "-map", "[a]"]
+                     + enc + ["-shortest", cikis])
+        else:
+            komut = [ff, "-y", "-i", giris, "-vf", vf, "-map", "0:v", "-map", "0:a?"] + enc + [cikis]
+        try:
+            subprocess.run(komut, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            return (ses, vhs)
+        except subprocess.CalledProcessError as e:
+            son_hata = (e.stderr or b"").decode("utf-8", "ignore")[-300:]
+            continue
+    raise RuntimeError("tum sinematik zincir denemeleri basarisiz: " + (son_hata or "bilinmeyen hata"))
+
+
 def video_olustur(words, medya, out_path):
     from moviepy import AudioFileClip, CompositeVideoClip
 
@@ -1769,8 +1850,10 @@ def video_olustur(words, medya, out_path):
         final = CompositeVideoClip([bg, *altyazilar, *marka], size=(W, H))
     final = final.with_audio(audio).with_duration(dur)
 
+    # SINEMATIK acikken once HAM dosyaya yaz, sonra FFmpeg sinematik pasi out_path'e yazsin.
+    ham = (out_path + ".raw.mp4") if SINEMATIK else out_path
     final.write_videofile(
-        out_path,
+        ham,
         fps=FPS,
         codec="libx264",
         audio_codec="aac",
@@ -1785,6 +1868,20 @@ def video_olustur(words, medya, out_path):
     audio.close()
     bg.close()
     final.close()
+
+    # --- FAZ 2: sinematik son-islem pasi (grade + grain + vignette + ambient) ---
+    if SINEMATIK:
+        try:
+            ses, vhs = _sinematik_pas(ham, out_path)
+            try:
+                os.remove(ham)
+            except OSError:
+                pass
+            print(f"  Sinematik pas uygulandi: grade + grain + vignette"
+                  f"{' + VHS' if vhs else ''}{' + ambient ugultu' if ses == 'ambient' else ''}.")
+        except Exception as e:
+            print("  (sinematik pas atlandi, ham video kullaniliyor:", str(e)[:200], ")")
+            os.replace(ham, out_path)
 
 
 # =========================================================
