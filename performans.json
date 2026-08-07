@@ -1,5 +1,5 @@
 {
- "guncelleme": "2026-08-07T13:01:45.292931+00:00",
+ "guncelleme": "2026-08-07T21:01:27.314817+00:00",
  "ozet": {
   "en_iyi": [
    {
@@ -41,12 +41,6 @@
   ],
   "en_kotu": [
    {
-    "baslik": "The Ghost Ship That Couldn't Sink: The Joyita Mystery #Shorts",
-    "izlenme": 57,
-    "begeni": 3,
-    "yorum": 0
-   },
-   {
     "baslik": "The Lead Masks Case: Brazil's Creepiest Unsolved Mystery #Shorts",
     "izlenme": 57,
     "begeni": 4,
@@ -63,10 +57,16 @@
     "izlenme": 19,
     "begeni": 2,
     "yorum": 0
+   },
+   {
+    "baslik": "A Hijacked Audio Signal OVERRODE Millions of TV Speakers #Shorts",
+    "izlenme": 8,
+    "begeni": 0,
+    "yorum": 0
    }
   ],
-  "ortalama": 604.3,
-  "video_sayisi": 55,
+  "ortalama": 594.1,
+  "video_sayisi": 56,
   "tum_basliklar": [
    "The 100-Million-Year-Old Hammer That Defies History #Shorts",
    "The Creepiest Unsolved Underwater Sound in History #Shorts",
@@ -122,7 +122,8 @@
    "The Ghost Ship That Couldn't Sink: The Joyita Mystery #Shorts",
    "The Lead Masks Case: Brazil's Creepiest Unsolved Mystery #Shorts",
    "The CIA's Most Disturbing Declassified Mars File #Shorts",
-   "Why Did It Rain Something Alive in 1994? #Shorts"
+   "Why Did It Rain Something Alive in 1994? #Shorts",
+   "A Hijacked Audio Signal OVERRODE Millions of TV Speakers #Shorts"
   ]
  }
 }
