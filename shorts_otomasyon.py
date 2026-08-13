@@ -2038,7 +2038,9 @@ def thumbnail_olustur(medya, metin, out_path, video_path=None):
 #  10) YouTube'a yukle (+ thumbnail bas)
 # =========================================================
 def youtube_yukle(dosya, baslik, aciklama, etiket_listesi, thumb_path=None):
+    import time, ssl, socket
     from googleapiclient.http import MediaFileUpload
+    from googleapiclient.errors import HttpError
 
     youtube = youtube_servisi()
     body = {
@@ -2052,15 +2054,40 @@ def youtube_yukle(dosya, baslik, aciklama, etiket_listesi, thumb_path=None):
         },
         "status": {"privacyStatus": PRIVACY, "selfDeclaredMadeForKids": False},
     }
-    media = MediaFileUpload(dosya, chunksize=-1, resumable=True, mimetype="video/mp4")
+    # Parcali (resumable) yukleme: tek bir SSL/ag kopmasi TUM yuklemeyi degil, yalnizca
+    # o parcayi etkiler; alttaki dongu ayni yerden devam eder. chunksize=-1 (tek istek)
+    # kullaniliyordu ve gecici bir SSLEOFError butun kosuyu cokertiyordu.
+    media = MediaFileUpload(dosya, chunksize=8 * 1024 * 1024, resumable=True, mimetype="video/mp4")
     istek = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
 
     print("  YouTube'a yukleniyor...")
     resp = None
+    hata = 0
+    MAX_HATA = 6
     while resp is None:
-        status, resp = istek.next_chunk()
-        if status:
-            print(f"    Yukleniyor: %{int(status.progress() * 100)}")
+        try:
+            status, resp = istek.next_chunk()
+            if status:
+                print(f"    Yukleniyor: %{int(status.progress() * 100)}")
+        except HttpError as e:
+            # Sadece gecici sunucu hatalarinda (5xx) tekrar dene; digerlerinde firlat
+            if getattr(e, "resp", None) is not None and e.resp.status in (500, 502, 503, 504):
+                hata += 1
+                if hata > MAX_HATA:
+                    raise
+                bekle = min(60, 2 ** hata)
+                print(f"    (YouTube {e.resp.status} -> {bekle}s sonra tekrar {hata}/{MAX_HATA})")
+                time.sleep(bekle)
+            else:
+                raise
+        except (ssl.SSLError, socket.timeout, ConnectionError, BrokenPipeError, TimeoutError, OSError) as e:
+            # SSLEOFError dahil gecici ag kopmalari -> ayni yerden devam et
+            hata += 1
+            if hata > MAX_HATA:
+                raise
+            bekle = min(60, 2 ** hata)
+            print(f"    (gecici ag hatasi: {type(e).__name__} -> {bekle}s sonra tekrar {hata}/{MAX_HATA})")
+            time.sleep(bekle)
     video_id = resp["id"]
     print("  Yuklendi! Video ID:", video_id)
     print("  Link:", "https://youtu.be/" + video_id)
