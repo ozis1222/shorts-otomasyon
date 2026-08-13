@@ -13,19 +13,31 @@
     "run:pipeline": "tsx src/cli/pipeline.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "worker": "tsx server/worker-loop.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "archiver": "^7.0.1",
     "nanoid": "^5.0.9",
+    "next": "^14.2.15",
     "playwright-core": "^1.49.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "sharp": "^0.33.5",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/archiver": "^6.0.3",
     "@types/node": "^22.10.5",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"

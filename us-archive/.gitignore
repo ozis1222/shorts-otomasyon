@@ -1,6 +1,10 @@
 node_modules/
 dist/
 output/
+data/
+.next/
+next-env.d.ts
+*.tsbuildinfo
 .env
 .env.local
 *.log
