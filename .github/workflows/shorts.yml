@@ -1,7 +1,17 @@
 name: Shorts Otomasyon
 
 on:
-  workflow_dispatch:   # Sadece cron-job.org tetikler
+  workflow_dispatch:   # cron-job.org (girdisiz -> varsayilanlar) veya elle tetikler
+    inputs:
+      privacy:
+        description: "YouTube gizlilik"
+        type: choice
+        default: "public"
+        options: [public, unlisted, private]
+      upload:
+        description: "YouTube'a yukle? 1=evet, 0=sadece uret (artifact olarak indirilir)"
+        type: string
+        default: "1"
 
 # Ayni anda iki kosu calisirsa hafiza dosyalari (gecmis.json) catisir -> sirayla calissin
 concurrency:
@@ -42,6 +52,9 @@ jobs:
           GEMINI_API_KEY:  ${{ secrets.GEMINI_API_KEY }}
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
           PEXELS_API_KEY:  ${{ secrets.PEXELS_API_KEY }}
+          # Elle tetiklemede secilebilir; cron (girdisiz) -> public + yukle (eski davranis)
+          PRIVACY:            ${{ inputs.privacy || 'public' }}
+          UPLOAD_TO_YOUTUBE:  ${{ inputs.upload || '1' }}
         run: python shorts_otomasyon.py
 
       - name: Hafizayi repoya kaydet (konu gecmisi + performans + gorsel)
