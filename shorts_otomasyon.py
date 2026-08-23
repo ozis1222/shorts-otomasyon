@@ -787,8 +787,20 @@ This channel is NOT just "missing people" - stories about a strange object, an o
 signal, a piece of CCTV, a lab finding, an archaeological find or a cold-war file are just as strong.
 Actively favor NON-disappearance angles.
 
-Pick a genuinely FRESH, SPECIFIC, REAL case that fits the chosen type. Vary country and century every
-time. Be specific, never generic. It must be a case a curious viewer has almost certainly never heard.
+Pick a genuinely FRESH, SPECIFIC, REAL, DOCUMENTED case that fits the chosen type. Vary country and
+century every time. It must be a case a curious viewer has almost certainly never heard.
+
+--- THIS MUST BE A REAL, NAMED, DATED EVENT (non-negotiable) ---
+- The event actually happened and is independently documented. Use the REAL full name of the person /
+  ship / plane / place involved, and the REAL year (add the month or day only when it matters).
+- It must feel like a true documented case file, NOT a generic tale. NEVER use vague, anonymous,
+  fiction-flavored framing such as "a man", "a woman", "someone", "a small town" or "years ago" when a
+  real identity and date exist - name them plainly.
+- NEVER invent or guess names, dates, places, quotes, numbers or evidence. If you are not certain the
+  name and year are real and verifiable, choose a different, better-documented case.
+- Favor cases with a strong, named human at the center and ONE shocking, concrete, documented detail.
+  That "based on a true story" weight - a real name, a real date, a real piece of evidence - is exactly
+  what makes these videos go viral. A vague, name-less story feels fake and gets swiped away.
 
 --- SCRIPT RULES (spoken narration) -- write like a Netflix / HBO true-crime doc, not an AI narrator ---
 - Language: English. Length: 60-80 words (about 30-35 seconds spoken). NEVER exceed 40 seconds.
@@ -808,13 +820,16 @@ time. Be specific, never generic. It must be a case a curious viewer has almost 
   * Great hooks (this energy): "The camera recorded everyone entering the building. Except one."
     / "They had enough food to survive. They all died anyway." / "The door was locked from inside,
     but the room was empty."
-  * DO NOT open with a name, a date, a year, a city name, "Did you know", "Imagine", or a question.
+  * You MAY put the person's real name inside the hook if it hits hard, but still LEAD with the shocking
+    concrete fact. NEVER open with a bare date/year ("In 1972..."), "Did you know", "Imagine", or a question.
 - Then keep tension rising with short, punchy sentences. No filler, no throat-clearing, no summarising.
+- ANCHOR IT AS REAL: within the first ~8 seconds, state the REAL name and the REAL year and place, so the
+  viewer immediately feels this is a documented true event, not a made-up story.
 - PACING - drop a NEW concrete detail every 2-3 seconds (a fact, an object, a number, a piece of
   evidence). The viewer must never be able to guess what the next line reveals.
-- Loose beat map: 0-2s shocking contradiction | 2-8s who/where/what, briefly | 8-18s tension climbs,
-  new detail each beat | 18-28s the single most important piece of evidence | 28-35s the line that
-  stays in their head.
+- Loose beat map: 0-2s shocking contradiction | 2-8s the REAL name, the REAL year and the place (so it
+  lands as a true documented case) | 8-18s tension climbs, new detail each beat | 18-28s the single
+  most important piece of evidence | 28-35s the line that stays in their head.
 - The FINAL sentence is the most disturbing concrete detail of the whole case - never a summary,
   never "the case is still open". End on one unresolved physical fact, then it stops.
 - PERSONAL RELEVANCE (biggest measured subscriber driver): before the halfway point, land ONE line
@@ -958,6 +973,15 @@ def gemini_uret(performans, viraller):
         if yk:
             reddedilenler.append(konu)
             print(f"      [{tur}] YASAK KELIME reddedildi -> '{yk}' (olayi anlat, etiketleme)")
+            continue
+
+        # GERCEK, TARIHLI VAKA garantisi: yasanmis bir olay her zaman bir tarih icerir.
+        # 4 haneli yil (1000-2099) VEYA antik referans (AD/BC/CE/century) araniyor. Yoksa
+        # hikaye 'bir adam bir kadin yasadi' gibi jenerik/uydurma hissi verir -> reddet.
+        if not (re.search(r"\b(1\d{3}|20\d\d)\b", script)
+                or re.search(r"\b(\d{1,4}\s?(?:ad|bc|ce|bce)|centur(?:y|ies))\b", script, re.I)):
+            reddedilenler.append(konu)
+            print(f"      [{tur}] TARIH YOK reddedildi -> script gercek bir yil/tarih icermiyor (isimli-tarihli olmali)")
             continue
 
         ttype = (data.get("topic_type") or "").strip().lower()
