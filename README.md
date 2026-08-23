@@ -111,6 +111,11 @@ yeniden uretilir):
 4. **Profesyonel gorsel sorgular** - tek kelime yasak. Her sahne icin `SUBJECT + SETTING +
    LIGHT/WEATHER` kalibinda, gerektiginde `aerial/close-up/macro/drone shot` gibi cekim kelimeleriyle,
    anlatim sirasina dizili, o an konusulan tek onemli detaya odaklanan aramalar.
+5. **Gercek, isimli, tarihli vaka zorunlulugu** - her hikaye YASANMIS, belgelenmis bir olay olmali:
+   gercek kisi/gemi/ucak/yer ADI ve gercek YIL gecmeli. "Bir adam / bir kadin / yillar once" gibi
+   jenerik-uydurma cerceveleme yasak; ilk ~8 saniyede gercek isim + yil + yer verilir (kanca yine
+   celiskiyle acilir, isim kancada olabilir ama duz tarihle acilis yasak). Kod tarafinda: script bir
+   yil/tarih (4 haneli yil ya da AD/BC/century) icermiyorsa fikir reddedilip yeniden uretilir.
 
 ### Faz 2: sinematik render katmani (aktif)
 
