@@ -11,6 +11,8 @@ Akis:
 """
 from __future__ import annotations
 
+import re
+
 from ..http_client import http_post_json
 from ..config import settings
 from .base import BaseProvider, RawBusiness, resolve_sector_tags
@@ -37,49 +39,82 @@ class OverpassProvider(BaseProvider):
             diag["error"] = "Sektor OSM etiketine cevrilemedi."
             return []
 
-        area = geocode_area(city, district, diag)
-        if not area:
-            reason = diag.get("http_error")
-            diag["error"] = (
-                "Konum bulunamadi (Nominatim). "
-                + (f"Sebep: {reason}. " if reason else "")
-                + "Sehir/ilce yazimini veya internet baglantinizi kontrol edin."
-            )
-            return []
-        diag["area"] = area.display_name
-        diag["area_type"] = area.osm_type
+        results: list[RawBusiness] = []
 
-        # 1) Once idari alan (area) ile dene.
-        area_scope = self._area_scope(area)
-        results, raw_count = self._query_and_parse(
-            tags, area_scope or self._bbox_scope(area),
-            city, district, sector, limit, diag,
-        )
-        # 2) Alan sorgusu bos dondu ama elimizde bbox de varsa, bbox ile tekrar dene.
-        if not results and area_scope and area.bbox:
+        # 1) Nominatim ile bolgeyi cozmeyi dene.
+        area = geocode_area(city, district, diag)
+        if area:
+            diag["area"] = area.display_name
+            diag["area_type"] = area.osm_type
+            area_scope = self._area_scope(area)
             results, raw_count = self._query_and_parse(
-                tags, self._bbox_scope(area),
+                tags, area_scope or self._bbox_scope(area),
                 city, district, sector, limit, diag,
             )
-        diag["raw_count"] = raw_count
-        return results
+            # Alan sorgusu bos dondu ama bbox de varsa, bbox ile tekrar dene.
+            if not results and area_scope and area.bbox:
+                results, raw_count = self._query_and_parse(
+                    tags, self._bbox_scope(area),
+                    city, district, sector, limit, diag,
+                )
+            diag["raw_count"] = raw_count
 
-    def _query_and_parse(self, tags, scope, city, district, sector, limit, diag):
-        diag["scope"] = scope
-        query = self._build_query(tags, scope, limit)
-        data = http_post_json(settings.OVERPASS_URL, data={"data": query}, diag=diag)
-        if data is None:
+        # 2) Nominatim basarisiz VEYA 0 sonuc -> Overpass'in kendi isim-tabanli
+        #    alan bulmasina dus (Nominatim'e hic bagimli kalmadan).
+        if not results:
+            results = self._search_by_area_name(
+                tags, city, district, sector, limit, diag
+            )
+
+        # Hala bir sey yoksa ve Nominatim de cozememisse, anlamli hata yaz.
+        if not results and not area and not diag.get("error"):
             reason = diag.get("http_error")
             diag["error"] = (
-                "Overpass API'ye ulasilamadi. "
+                "Konum bulunamadi. "
                 + (f"Sebep: {reason}. " if reason else "")
-                + "Birkac dakika sonra tekrar deneyin."
+                + "Sehir/ilce yazimini (Turkce karakterlerle) veya internet "
+                + "baglantinizi kontrol edin."
             )
-            return [], 0
-        if "elements" not in data:
-            return [], 0
+        return results
 
-        elements = data["elements"]
+    def _search_by_area_name(self, tags, city, district, sector, limit, diag):
+        """Nominatim'e ihtiyac duymadan, alani ISMINE gore Overpass icinde bulur.
+        Once ilce adini, olmazsa sehir adini dener."""
+        candidates = [n.strip() for n in (district, city) if n and n.strip()]
+        for name in candidates:
+            query = self._build_named_area_query(tags, name, limit)
+            data = self._overpass_request(query, diag)
+            if not data or "elements" not in data:
+                continue
+            elements = data["elements"]
+            results = self._parse_elements(elements, city, district, sector, limit)
+            if results:
+                # Basarili: onceki Nominatim hatasini temizle, teshisi guncelle.
+                diag["error"] = None
+                diag["area"] = diag.get("area") or f"{name} (Overpass isim eslemesi)"
+                diag["scope"] = f'area name~"^{name}$" (idari sinir)'
+                diag["raw_count"] = len(elements)
+                return results
+        return []
+
+    def _build_named_area_query(self, tags, name: str, limit: int) -> str:
+        esc = self._escape_regex(name)
+        lines = [f'  nwr["{k}"="{v}"](area.searchArea);' for (k, v) in tags]
+        body = "\n".join(lines)
+        # Ismi idari sinir olarak eslestir (buyuk/kucuk harf duyarsiz).
+        return (
+            f"[out:json][timeout:90];\n"
+            f'area["name"~"^{esc}$",i]["boundary"="administrative"]->.searchArea;\n'
+            f"(\n{body}\n);\n"
+            f"out center {max(1, limit)};"
+        )
+
+    @staticmethod
+    def _escape_regex(s: str) -> str:
+        s = s.replace("\\", "").replace('"', "")
+        return re.sub(r"([.^$*+?()\[\]{}|])", r"\\\1", s)
+
+    def _parse_elements(self, elements, city, district, sector, limit):
         results: list[RawBusiness] = []
         seen: set[str] = set()
         for el in elements:
@@ -89,7 +124,39 @@ class OverpassProvider(BaseProvider):
                 results.append(rb)
             if len(results) >= limit:
                 break
-        return results, len(elements)
+        return results
+
+    def _query_and_parse(self, tags, scope, city, district, sector, limit, diag):
+        diag["scope"] = scope
+        query = self._build_query(tags, scope, limit)
+        data = self._overpass_request(query, diag)
+        if data is None:
+            reason = diag.get("http_error")
+            diag["error"] = (
+                "Overpass API'ye ulasilamadi (tum sunucular denendi). "
+                + (f"Sebep: {reason}. " if reason else "")
+                + "Birkac dakika sonra tekrar deneyin."
+            )
+            return [], 0
+        if "elements" not in data:
+            return [], 0
+
+        elements = data["elements"]
+        return self._parse_elements(elements, city, district, sector, limit), len(elements)
+
+    def _overpass_request(self, query: str, diag: dict):
+        """Overpass sorgusunu sirayla yedek sunucularda dener; ilk basariliyi doner."""
+        last_error = None
+        for url in settings.OVERPASS_MIRRORS:
+            local: dict = {}
+            data = http_post_json(url, data={"data": query}, diag=local)
+            if data is not None:
+                diag["overpass_server"] = url
+                return data
+            last_error = local.get("http_error")
+        if last_error:
+            diag["http_error"] = last_error
+        return None
 
     def _build_query(self, tags, scope: str, limit: int) -> str:
         # Her etiket icin ayri nwr satiri (OR mantigi).

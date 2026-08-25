@@ -32,11 +32,10 @@ def _respect_rate_limit() -> None:
 
 
 def _headers(extra: dict | None = None) -> dict:
-    h = {
-        "User-Agent": settings.USER_AGENT,
-        "Accept": "application/json",
-        "Accept-Language": "tr,en;q=0.8",
-    }
+    # Not: bilincli olarak "Accept: application/json" GONDERMIYORUZ; bazi Overpass
+    # sunuculari bu basligi 406 (Not Acceptable) ile reddedebiliyor. Cikti formati
+    # zaten sorgudaki [out:json] / format parametresi ile belirleniyor.
+    h = {"User-Agent": settings.USER_AGENT, "Accept-Language": "tr,en;q=0.8"}
     if extra:
         h.update(extra)
     return h

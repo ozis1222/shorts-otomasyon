@@ -40,10 +40,22 @@ class Settings:
 
     # --- Veri toplama ---
     OVERPASS_URL: str = _get("OVERPASS_URL", "https://overpass-api.de/api/interpreter")
+    # Overpass yedek sunuculari (birincisi engellenir/yavas olursa sirayla denenir).
+    OVERPASS_MIRRORS: list[str] = [
+        u for u in [
+            _get("OVERPASS_URL", "https://overpass-api.de/api/interpreter"),
+            "https://overpass.kumi.systems/api/interpreter",
+            "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+        ]
+    ]
     NOMINATIM_URL: str = _get("NOMINATIM_URL", "https://nominatim.openstreetmap.org")
     REQUEST_DELAY_SECONDS: float = _get_float("REQUEST_DELAY_SECONDS", 1.0)
+    # Onemli: OSM servisleri placeholder/ornek User-Agent'lari engeller (403/406).
+    # Bu yuzden benzersiz, gercek bir tanimlayici kullaniyoruz (bir URL yeterli).
+    # Isterseniz .env icinde kendi e-postanizla degistirin.
     USER_AGENT: str = _get(
-        "USER_AGENT", "LeadFinderMVP/1.0 (contact: example@example.com)"
+        "USER_AGENT",
+        "LeadFinder/1.0 (+https://github.com/ozis1222/shorts-otomasyon)",
     )
 
     # --- Web sitesi analizi ---
