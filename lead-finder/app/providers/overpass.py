@@ -20,48 +20,88 @@ from .openstreetmap import geocode_area
 class OverpassProvider(BaseProvider):
     name = "overpass"
 
+    def __init__(self) -> None:
+        # Son aramanin teshis bilgisi (panelde gosterilir).
+        self.last_diagnostics: dict = {}
+
     def search(
         self, city: str, district: str, sector: str, limit: int
     ) -> list[RawBusiness]:
+        diag: dict = {"sector_recognized": True, "area": None, "scope": None,
+                      "raw_count": 0, "error": None}
+        self.last_diagnostics = diag
+
         tags = resolve_sector_tags(sector)
         if not tags:
-            # Bilinmeyen sektor: bos don, cagiran taraf kullaniciyi bilgilendirir.
+            diag["sector_recognized"] = False
+            diag["error"] = "Sektor OSM etiketine cevrilemedi."
             return []
 
         area = geocode_area(city, district)
         if not area:
+            diag["error"] = (
+                "Konum bulunamadi (Nominatim). Sehir/ilce yazimini kontrol edin "
+                "veya internet baglantinizi kontrol edin."
+            )
             return []
+        diag["area"] = area.display_name
+        diag["area_type"] = area.osm_type
 
-        query = self._build_query(tags, area, limit)
+        # 1) Once idari alan (area) ile dene.
+        area_scope = self._area_scope(area)
+        results, raw_count = self._query_and_parse(
+            tags, area_scope or self._bbox_scope(area),
+            city, district, sector, limit, diag,
+        )
+        # 2) Alan sorgusu bos dondu ama elimizde bbox de varsa, bbox ile tekrar dene.
+        if not results and area_scope and area.bbox:
+            results, raw_count = self._query_and_parse(
+                tags, self._bbox_scope(area),
+                city, district, sector, limit, diag,
+            )
+        diag["raw_count"] = raw_count
+        return results
+
+    def _query_and_parse(self, tags, scope, city, district, sector, limit, diag):
+        diag["scope"] = scope
+        query = self._build_query(tags, scope, limit)
         data = http_post_json(settings.OVERPASS_URL, data={"data": query})
-        if not data or "elements" not in data:
-            return []
+        if data is None:
+            diag["error"] = (
+                "Overpass API'ye ulasilamadi (zaman asimi veya baglanti hatasi). "
+                "Birkac dakika sonra tekrar deneyin."
+            )
+            return [], 0
+        if "elements" not in data:
+            return [], 0
 
+        elements = data["elements"]
         results: list[RawBusiness] = []
         seen: set[str] = set()
-        for el in data["elements"]:
+        for el in elements:
             rb = self._element_to_business(el, city, district, sector)
             if rb and rb.source_ref not in seen:
                 seen.add(rb.source_ref)
                 results.append(rb)
             if len(results) >= limit:
                 break
-        return results
+        return results, len(elements)
 
-    def _build_query(self, tags, area, limit: int) -> str:
-        area_id = area.overpass_area_id
+    def _build_query(self, tags, scope: str, limit: int) -> str:
         # Her etiket icin ayri nwr satiri (OR mantigi).
-        lines = []
-        scope = f"area:{area_id}" if area_id else self._bbox_scope(area)
-        for (k, v) in tags:
-            lines.append(f'  nwr["{k}"="{v}"]({scope});')
+        lines = [f'  nwr["{k}"="{v}"]({scope});' for (k, v) in tags]
         body = "\n".join(lines)
-        # timeout ve maxsize makul tutuldu; out center: way/relation icin merkez nokta.
+        # "out center": way/relation icin merkez nokta ekler; varsayilan "body"
+        # verbosity zaten etiketleri getirir. Limit sona yazilir.
         return (
-            f"[out:json][timeout:60];\n"
+            f"[out:json][timeout:90];\n"
             f"(\n{body}\n);\n"
-            f"out center tags {max(1, limit)};"
+            f"out center {max(1, limit)};"
         )
+
+    def _area_scope(self, area) -> str | None:
+        aid = area.overpass_area_id
+        return f"area:{aid}" if aid else None
 
     def _bbox_scope(self, area) -> str:
         if area.bbox:

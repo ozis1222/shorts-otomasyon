@@ -53,9 +53,31 @@
           <li>Zaten kayıtlı (atlandı): <b>{{ summary.duplicates }}</b></li>
           <li>Analiz edilen: <b>{{ summary.analyzed }}</b></li>
         </ul>
+
+        <!-- TESHIS: sistem konumu nasil anladi? -->
+        <div class="mt-4 pt-3 border-t border-emerald-200 text-xs text-slate-600 space-y-1">
+          <div>🔎 Anlaşılan konum:
+            <b>{{ summary.resolved_area or "bulunamadı" }}</b>
+          </div>
+          {% if summary.provider_note %}
+          <div class="text-amber-700">⚠️ {{ summary.provider_note }}</div>
+          {% endif %}
+        </div>
+
+        {% if summary.found > 0 %}
         <a href="/leads?sort=score" class="inline-block mt-4 bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-emerald-700">
           Sonuçları Gör →
         </a>
+        {% else %}
+        <div class="mt-4 text-sm text-slate-600 bg-white border border-slate-200 rounded-lg p-3">
+          <b>0 sonuç.</b> Şunları deneyin:
+          <ul class="list-disc list-inside mt-1">
+            <li>İlçe adını farklı yazın (ör. "Beyoğlu" yerine boş bırakıp sadece "İstanbul").</li>
+            <li>Sektörü öneri listesinden seçin.</li>
+            <li>Yukarıdaki "Anlaşılan konum" doğru mu kontrol edin — yanlışsa ilçe/şehir yazımı hatalı olabilir.</li>
+          </ul>
+        </div>
+        {% endif %}
       </div>
       {% endif %}
     {% else %}

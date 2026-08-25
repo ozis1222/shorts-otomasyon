@@ -32,6 +32,10 @@ class CollectSummary:
     duplicates: int = 0
     analyzed: int = 0
     error: str | None = None
+    # Teshis: sistemin konumu nasil anladigini ve neyi taradigini gosterir.
+    resolved_area: str | None = None
+    scope: str | None = None
+    provider_note: str | None = None
 
 
 def run_collection(
@@ -55,9 +59,17 @@ def run_collection(
             break
         try:
             raw_items.extend(provider.search(city, district, sector, remaining))
-        except Exception:
-            # Bir kaynak patlarsa digerleriyle devam et.
+        except Exception as exc:
+            # Bir kaynak patlarsa digerleriyle devam et; teshis notu birak.
+            summary.provider_note = f"Kaynak hatasi: {type(exc).__name__}: {exc}"
             continue
+        # Provider teshis bilgisini ozete tasi (konum/kapsam/hata).
+        diag = getattr(provider, "last_diagnostics", None)
+        if diag:
+            summary.resolved_area = diag.get("area") or summary.resolved_area
+            summary.scope = diag.get("scope") or summary.scope
+            if diag.get("error"):
+                summary.provider_note = diag["error"]
 
     summary.found = len(raw_items)
 

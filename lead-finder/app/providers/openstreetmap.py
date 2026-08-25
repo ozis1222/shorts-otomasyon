@@ -38,14 +38,21 @@ class GeoArea:
 
 
 def geocode_area(city: str, district: str) -> GeoArea | None:
-    """Sehir/ilce icin bolge bilgisini dondurur; bulunamazsa None."""
+    """Sehir/ilce icin bolge bilgisini dondurur; bulunamazsa None.
+
+    Onemli: Nominatim ilk sonuc olarak bazen tek bir NOKTA (place node)
+    dondurur; bunun sinir kutusu cok kucuktur ve Overpass sorgusu 0 sonuc
+    verir. Bu yuzden birden fazla sonuc isteyip, mumkunse IDARI SINIR
+    (relation/way boundary) olan sonucu tercih ederiz. Boylece ilcenin tamami
+    taranir.
+    """
     parts = [p for p in [district, city, "Turkiye"] if p and p.strip()]
     query = ", ".join(parts)
 
     params = {
         "q": query,
         "format": "jsonv2",
-        "limit": "1",
+        "limit": "5",            # birden fazla sonuc: en iyisini seceriz
         "addressdetails": "0",
         "polygon_geojson": "0",
     }
@@ -54,14 +61,8 @@ def geocode_area(city: str, district: str) -> GeoArea | None:
     if not data:
         return None
 
-    item = data[0]
-    bbox = None
-    if item.get("boundingbox") and len(item["boundingbox"]) == 4:
-        try:
-            s, n, w, e = (float(x) for x in item["boundingbox"])
-            bbox = (s, n, w, e)
-        except (TypeError, ValueError):
-            bbox = None
+    item = _pick_best_area(data)
+    bbox = _parse_bbox(item.get("boundingbox"))
 
     return GeoArea(
         display_name=item.get("display_name", query),
@@ -71,3 +72,28 @@ def geocode_area(city: str, district: str) -> GeoArea | None:
         lat=float(item["lat"]) if item.get("lat") else None,
         lon=float(item["lon"]) if item.get("lon") else None,
     )
+
+
+def _pick_best_area(results: list[dict]) -> dict:
+    """Sonuclar arasindan en iyi 'alan'i secer:
+    once idari sinir (boundary/relation veya way), yoksa ilk sonuc."""
+    # 1) class=boundary olan bir sonuc (idari sinir) en idealidir.
+    for r in results:
+        if r.get("class") == "boundary" and r.get("osm_type") in ("relation", "way"):
+            return r
+    # 2) Herhangi bir relation/way (alan olusturabilir).
+    for r in results:
+        if r.get("osm_type") in ("relation", "way"):
+            return r
+    # 3) Son care: ilk sonuc (muhtemelen nokta; bbox ile aranir).
+    return results[0]
+
+
+def _parse_bbox(raw) -> tuple[float, float, float, float] | None:
+    if raw and len(raw) == 4:
+        try:
+            s, n, w, e = (float(x) for x in raw)
+            return (s, n, w, e)
+        except (TypeError, ValueError):
+            return None
+    return None
