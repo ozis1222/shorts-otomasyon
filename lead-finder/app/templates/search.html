@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}İşletme Ara · Lead Finder{% endblock %}
+{% block content %}
+
+<h1 class="text-2xl font-bold mb-6">İşletme Ara</h1>
+
+<div class="grid md:grid-cols-2 gap-6">
+  <form method="post" action="/search" class="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+    <div>
+      <label class="block text-sm font-medium mb-1">Şehir *</label>
+      <input name="city" required value="{{ form.city if form else 'İstanbul' }}"
+             class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="İstanbul">
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">İlçe</label>
+      <input name="district" value="{{ form.district if form else '' }}"
+             class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="Avcılar">
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">Sektör *</label>
+      <input name="sector" required list="sectorlist" value="{{ form.sector if form else '' }}"
+             class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="Diş Kliniği">
+      <datalist id="sectorlist">
+        {% for s in sectors %}<option value="{{ s }}">{% endfor %}
+      </datalist>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">Maksimum İşletme</label>
+      <input name="max_results" type="number" min="1" max="500" value="{{ form.max_results if form else 50 }}"
+             class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+    </div>
+    <button type="submit" class="w-full bg-indigo-600 text-white text-sm font-medium px-4 py-2.5 rounded-lg hover:bg-indigo-700">
+      Ara ve Analiz Et
+    </button>
+    <p class="text-xs text-slate-400">
+      Veriler OpenStreetMap / Overpass API'den (ücretsiz, açık kaynak) çekilir.
+      Arama, işletme sayısına ve site analizine göre biraz sürebilir.
+    </p>
+  </form>
+
+  <div>
+    {% if summary %}
+      {% if summary.error %}
+      <div class="bg-red-50 border border-red-200 rounded-xl p-6 text-sm text-red-700">
+        {{ summary.error }}
+      </div>
+      {% else %}
+      <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-6">
+        <h2 class="font-semibold text-emerald-800 mb-3">Arama Tamamlandı ✓</h2>
+        <ul class="text-sm space-y-1 text-slate-700">
+          <li>Bulunan işletme: <b>{{ summary.found }}</b></li>
+          <li>Yeni kaydedilen: <b>{{ summary.new_businesses }}</b></li>
+          <li>Zaten kayıtlı (atlandı): <b>{{ summary.duplicates }}</b></li>
+          <li>Analiz edilen: <b>{{ summary.analyzed }}</b></li>
+        </ul>
+        <a href="/leads?sort=score" class="inline-block mt-4 bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-emerald-700">
+          Sonuçları Gör →
+        </a>
+      </div>
+      {% endif %}
+    {% else %}
+      <div class="bg-white rounded-xl border border-slate-200 p-6 text-sm text-slate-600">
+        <h2 class="font-semibold mb-2">Nasıl çalışır?</h2>
+        <ol class="list-decimal list-inside space-y-1">
+          <li>Şehir, ilçe ve sektör girin.</li>
+          <li>Sistem OpenStreetMap'ten işletmeleri bulur.</li>
+          <li>Her işletmenin web sitesi kontrol edilir.</li>
+          <li>Lead skoru hesaplanır.</li>
+          <li>En iyi potansiyel müşteriler listelenir.</li>
+        </ol>
+        <p class="mt-3 text-xs text-slate-400">Desteklenen sektörlerden birini seçmeniz sonuçları iyileştirir.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

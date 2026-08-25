@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Ortam degiskenleri (gizli olabilir - asla commit edilmez)
+.env
+
+# SQLite veritabani (yerel veriler)
+*.db
+lead_finder.db

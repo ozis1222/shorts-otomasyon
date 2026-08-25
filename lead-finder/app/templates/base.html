@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Lead Finder{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Kopyalama yardimcisi (satis mesaji / telefon icin).
+    function copyText(text, btn) {
+      navigator.clipboard.writeText(text).then(() => {
+        const old = btn.innerText;
+        btn.innerText = "Kopyalandi ✓";
+        setTimeout(() => { btn.innerText = old; }, 1500);
+      });
+    }
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <nav class="bg-white border-b border-slate-200 sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-6">
+      <a href="/" class="font-bold text-lg text-indigo-600">🎯 Lead Finder</a>
+      <a href="/" class="text-sm hover:text-indigo-600">Panel</a>
+      <a href="/leads" class="text-sm hover:text-indigo-600">Lead Listesi</a>
+      <a href="/search" class="text-sm hover:text-indigo-600">İşletme Ara</a>
+      <span class="ml-auto text-xs text-slate-400">MVP · Ücretsiz kaynaklar</span>
+    </div>
+  </nav>
+  <main class="max-w-6xl mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="max-w-6xl mx-auto px-4 py-8 text-xs text-slate-400">
+    Lead Finder · Veriler OpenStreetMap (ODbL) kaynaklidir · Yalnizca herkese acik isletme bilgileri islenir.
+  </footer>
+</body>
+</html>

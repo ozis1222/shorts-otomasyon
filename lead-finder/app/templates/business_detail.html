@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}{{ b.name }} · Lead Finder{% endblock %}
+{% block content %}
+
+<div class="mb-4"><a href="/leads" class="text-sm text-slate-500 hover:text-indigo-600">← Lead listesine dön</a></div>
+
+<div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+  <div>
+    <h1 class="text-2xl font-bold">{{ b.name }}</h1>
+    <div class="text-sm text-slate-500 mt-1">{{ b.sector or "-" }} · {{ b.district or "" }} {{ b.city or "" }}</div>
+  </div>
+  {% if b.lead %}
+  <div class="text-right">
+    <div class="text-4xl font-bold {{ 'text-red-600' if b.lead.lead_level=='HOT' else 'text-orange-500' if b.lead.lead_level=='WARM' else 'text-yellow-600' if b.lead.lead_level=='POSSIBLE' else 'text-slate-500' }}">
+      {{ b.lead.lead_score }}<span class="text-lg text-slate-400">/100</span>
+    </div>
+    <span class="inline-block px-2 py-1 rounded-full text-xs font-semibold border {{ b.lead.lead_level|level_color }}">{{ b.lead.lead_level }} LEAD</span>
+  </div>
+  {% endif %}
+</div>
+
+<div class="grid md:grid-cols-3 gap-6">
+  <!-- SOL: Bilgiler + skor sebepleri -->
+  <div class="md:col-span-2 space-y-6">
+
+    <!-- Iletisim ve bilgiler -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <h2 class="font-semibold mb-3">İşletme Bilgileri</h2>
+      <dl class="grid grid-cols-2 gap-y-2 text-sm">
+        <dt class="text-slate-500">Telefon</dt>
+        <dd class="flex items-center gap-2">
+          {{ b.phone or "-" }}
+          {% if b.phone %}<button onclick="copyText('{{ b.phone }}', this)" class="text-xs bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded">COPY PHONE</button>{% endif %}
+        </dd>
+        <dt class="text-slate-500">E-posta</dt>
+        <dd>{{ b.email or "-" }}</dd>
+        <dt class="text-slate-500">Web Sitesi</dt>
+        <dd>{% if b.website %}<a href="{{ b.website }}" target="_blank" rel="noopener" class="text-indigo-600 hover:underline break-all">{{ b.website }}</a>{% else %}<span class="text-purple-600 font-medium">Yok</span>{% endif %}</dd>
+        <dt class="text-slate-500">Adres</dt>
+        <dd>{{ b.address or "-" }}</dd>
+        <dt class="text-slate-500">Çalışma Saatleri</dt>
+        <dd>{{ b.opening_hours or "-" }}</dd>
+        <dt class="text-slate-500">Kaynak</dt>
+        <dd>{% if b.source_url %}<a href="{{ b.source_url }}" target="_blank" rel="noopener" class="text-indigo-600 hover:underline">{{ b.source }}</a>{% else %}{{ b.source or "-" }}{% endif %}</dd>
+        <dt class="text-slate-500">Eklenme</dt>
+        <dd>{{ b.created_at.strftime("%Y-%m-%d") if b.created_at else "-" }}</dd>
+      </dl>
+      {% if b.latitude and b.longitude %}
+      <a href="https://www.openstreetmap.org/?mlat={{ b.latitude }}&mlon={{ b.longitude }}#map=17/{{ b.latitude }}/{{ b.longitude }}"
+         target="_blank" rel="noopener" class="inline-block mt-3 text-xs text-indigo-600 hover:underline">📍 Haritada göster</a>
+      {% endif %}
+    </div>
+
+    <!-- Lead sebepleri -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <h2 class="font-semibold mb-3">Lead Skoru Nedenleri</h2>
+      {% if reasons %}
+      <ul class="space-y-1 text-sm">
+        {% for r in reasons %}<li class="flex gap-2"><span class="text-emerald-600">✓</span><span>{{ r }}</span></li>{% endfor %}
+      </ul>
+      {% else %}<p class="text-sm text-slate-400">Sebep bilgisi yok.</p>{% endif %}
+    </div>
+
+    <!-- Web sitesi analizi -->
+    {% if b.analysis %}
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold">Web Sitesi Teknik Analizi</h2>
+        <form method="post" action="/business/{{ b.id }}/reanalyze"><button class="text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded">Yeniden Analiz Et</button></form>
+      </div>
+      {% set a = b.analysis %}
+      {% if not a.website_exists %}
+        <p class="text-sm text-purple-600 font-medium">Bu işletmenin web sitesi yok — yüksek potansiyel müşteri.</p>
+      {% else %}
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+        {% macro flag(label, val, invert=False) %}
+          <div class="flex items-center gap-1.5 px-2 py-1.5 rounded border {{ 'border-emerald-200 bg-emerald-50' if (val and not invert) or (not val and invert) else 'border-red-200 bg-red-50' }}">
+            <span>{{ '✓' if (val and not invert) or (not val and invert) else '✗' }}</span><span>{{ label }}</span>
+          </div>
+        {% endmacro %}
+        {{ flag("Erişilebilir", a.website_accessible) }}
+        {{ flag("HTTPS", a.https_enabled) }}
+        {{ flag("SSL sorunsuz", a.ssl_ok) }}
+        {{ flag("Mobil uyumlu", a.mobile_friendly) }}
+        {{ flag("Responsive", a.responsive_signals) }}
+        {{ flag("Başlık (title)", a.has_title) }}
+        {{ flag("Meta description", a.has_meta_description) }}
+        {{ flag("Favicon", a.has_favicon) }}
+        {{ flag("İletişim sayfası", a.has_contact_page) }}
+        {{ flag("Telefon", a.has_phone) }}
+        {{ flag("WhatsApp", a.has_whatsapp) }}
+        {{ flag("Harita", a.has_map) }}
+        {{ flag("Sosyal medya", a.has_social_links) }}
+        {{ flag("Online randevu", a.has_booking) }}
+        {{ flag("Eski görünüm", a.looks_outdated, invert=True) }}
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-xs text-slate-600">
+        <div>Durum kodu: <b>{{ a.status_code or "-" }}</b></div>
+        <div>Yüklenme: <b>{{ a.load_time or "-" }} sn</b></div>
+        <div>Sayfa boyutu: <b>{{ (a.page_size // 1024) if a.page_size else "-" }} KB</b></div>
+        <div>Teknik skor: <b>{{ a.technical_score }}/100</b></div>
+      </div>
+      {% if outdated_reasons %}
+      <div class="mt-3 text-xs text-slate-500">
+        <div class="font-medium text-slate-600 mb-1">Eski görünüm sebepleri:</div>
+        <ul class="list-disc list-inside">{% for o in outdated_reasons %}<li>{{ o }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      {% endif %}
+      <div class="text-[11px] text-slate-400 mt-3">Son analiz: {{ a.analysis_date.strftime("%Y-%m-%d %H:%M") if a.analysis_date else "-" }}</div>
+    </div>
+    {% endif %}
+
+    <!-- AI yorumu (opsiyonel) -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold">Yapay Zeka Yorumu <span class="text-xs text-slate-400 font-normal">(opsiyonel)</span></h2>
+        {% if ai_enabled %}<form method="post" action="/business/{{ b.id }}/ai"><button class="text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-2 py-1 rounded">AI ile Değerlendir</button></form>{% endif %}
+      </div>
+      {% if b.analysis and b.analysis.ai_summary %}
+        <div class="text-sm whitespace-pre-wrap text-slate-700">{{ b.analysis.ai_summary }}</div>
+      {% elif ai_enabled %}
+        <p class="text-sm text-slate-400">Henüz AI değerlendirmesi yapılmadı. Yukarıdaki butonu kullanın.</p>
+      {% else %}
+        <p class="text-sm text-slate-400">AI kapalı (AI_MODE=none). Etkinleştirmek için .env dosyasında AI_MODE=ollama yapın (ücretsiz, yerel).</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- SAG: CRM + mesajlar + demo -->
+  <div class="space-y-6">
+
+    <!-- Demo -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <h2 class="font-semibold mb-3">Demo Site</h2>
+      {% if b.demo %}
+        <a href="/demo/{{ b.demo.demo_slug }}" target="_blank" rel="noopener" class="block text-center bg-emerald-600 text-white text-sm py-2 rounded-lg hover:bg-emerald-700 mb-2">Demoyu Aç →</a>
+        <div class="text-xs text-slate-400 break-all">/demo/{{ b.demo.demo_slug }} · şablon: {{ b.demo.template_type }}</div>
+        <button onclick="copyText('{{ request.base_url }}demo/{{ b.demo.demo_slug }}'.replace(/([^:]\/)\/+/g,'$1'), this)" class="mt-2 w-full text-xs bg-slate-100 hover:bg-slate-200 py-1.5 rounded">COPY DEMO LINK</button>
+      {% else %}
+        <form method="post" action="/business/{{ b.id }}/demo"><button class="w-full bg-indigo-600 text-white text-sm py-2 rounded-lg hover:bg-indigo-700">İşletmeye Özel Demo Oluştur</button></form>
+        <p class="text-xs text-slate-400 mt-2">Sektöre uygun hazır şablona işletme bilgileri yerleştirilir.</p>
+      {% endif %}
+    </div>
+
+    <!-- CRM -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <h2 class="font-semibold mb-3">CRM</h2>
+      <form method="post" action="/business/{{ b.id }}/crm" class="space-y-3 text-sm">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Durum</label>
+          <select name="crm_status" class="w-full border border-slate-300 rounded-lg px-2 py-1.5">
+            {% for st in crm_statuses %}<option value="{{ st }}" {% if b.lead and b.lead.crm_status==st %}selected{% endif %}>{{ st }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Notlar</label>
+          <textarea name="notes" rows="3" class="w-full border border-slate-300 rounded-lg px-2 py-1.5" placeholder="25 Ağustos WhatsApp'tan mesaj atıldı">{{ b.lead.notes if b.lead and b.lead.notes else "" }}</textarea>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Takip Tarihi</label>
+          <input type="date" name="follow_up_date" value="{{ b.lead.follow_up_date if b.lead and b.lead.follow_up_date else '' }}" class="w-full border border-slate-300 rounded-lg px-2 py-1.5">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Son İletişim Tarihi</label>
+          <input type="date" name="last_contact_date" value="{{ b.lead.last_contact_date if b.lead and b.lead.last_contact_date else '' }}" class="w-full border border-slate-300 rounded-lg px-2 py-1.5">
+        </div>
+        <button class="w-full bg-slate-800 text-white text-sm py-2 rounded-lg hover:bg-slate-900">Kaydet</button>
+      </form>
+    </div>
+
+    <!-- Satis mesajlari -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+      <h2 class="font-semibold">Satış Mesajı Taslakları</h2>
+      <p class="text-xs text-slate-400">Mesajlar otomatik gönderilmez. Kopyalayıp kendiniz iletin.</p>
+
+      {% macro msgbox(title, text) %}
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-xs font-medium text-slate-600">{{ title }}</span>
+          <button onclick="copyText(this.parentElement.nextElementSibling.innerText, this)" class="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-2 py-0.5 rounded">COPY MESSAGE</button>
+        </div>
+        <div class="text-xs whitespace-pre-wrap bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-700">{{ text }}</div>
+      </div>
+      {% endmacro %}
+
+      {{ msgbox("WhatsApp Mesajı", drafts.whatsapp) }}
+      {{ msgbox("Kısa Mesaj", drafts.short) }}
+      {{ msgbox("E-posta (" + drafts.email_subject + ")", drafts.email_body) }}
+      {{ msgbox("Demo Tanıtımı", drafts.demo_intro) }}
+    </div>
+
+    <!-- Sil -->
+    <form method="post" action="/business/{{ b.id }}/delete" onsubmit="return confirm('Bu işletme ve tüm verileri silinsin mi?');">
+      <button class="w-full text-xs text-red-500 hover:text-red-700 py-2">İşletmeyi Sil</button>
+    </form>
+
+  </div>
+</div>
+
+{% endblock %}

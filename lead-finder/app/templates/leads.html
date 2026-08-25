@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Lead Listesi · Lead Finder{% endblock %}
+{% block content %}
+
+<h1 class="text-2xl font-bold mb-6">Lead Listesi</h1>
+
+<form method="get" action="/leads" class="bg-white rounded-xl border border-slate-200 p-4 mb-6 grid grid-cols-2 md:grid-cols-7 gap-3 text-sm items-end">
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">Sektör</label>
+    <select name="sector" class="w-full border border-slate-300 rounded-lg px-2 py-1.5">
+      <option value="">Tümü</option>
+      {% for s in sectors %}<option value="{{ s }}" {% if filters.sector==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">Şehir</label>
+    <select name="city" class="w-full border border-slate-300 rounded-lg px-2 py-1.5">
+      <option value="">Tümü</option>
+      {% for c in cities %}<option value="{{ c }}" {% if filters.city==c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">İlçe</label>
+    <select name="district" class="w-full border border-slate-300 rounded-lg px-2 py-1.5">
+      <option value="">Tümü</option>
+      {% for d in districts %}<option value="{{ d }}" {% if filters.district==d %}selected{% endif %}>{{ d }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">Min. Skor</label>
+    <input name="min_score" type="number" min="0" max="100" value="{{ filters.min_score }}" class="w-full border border-slate-300 rounded-lg px-2 py-1.5">
+  </div>
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">Web Sitesi</label>
+    <select name="has_website" class="w-full border border-slate-300 rounded-lg px-2 py-1.5">
+      <option value="" {% if filters.has_website=="" %}selected{% endif %}>Tümü</option>
+      <option value="no" {% if filters.has_website=="no" %}selected{% endif %}>Yok</option>
+      <option value="yes" {% if filters.has_website=="yes" %}selected{% endif %}>Var</option>
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">CRM Durumu</label>
+    <select name="crm_status" class="w-full border border-slate-300 rounded-lg px-2 py-1.5">
+      <option value="">Tümü</option>
+      {% for st in crm_statuses %}<option value="{{ st }}" {% if filters.crm_status==st %}selected{% endif %}>{{ st }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">Sırala</label>
+    <div class="flex gap-2">
+      <select name="sort" class="w-full border border-slate-300 rounded-lg px-2 py-1.5">
+        <option value="score" {% if filters.sort=="score" %}selected{% endif %}>Skor</option>
+        <option value="newest" {% if filters.sort=="newest" %}selected{% endif %}>En Yeni</option>
+        <option value="name" {% if filters.sort=="name" %}selected{% endif %}>A-Z</option>
+      </select>
+      <button class="bg-indigo-600 text-white px-3 rounded-lg hover:bg-indigo-700">Filtrele</button>
+    </div>
+  </div>
+</form>
+
+<div class="text-sm text-slate-500 mb-3">{{ businesses|length }} sonuç</div>
+
+<div class="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500 text-left text-xs uppercase">
+      <tr>
+        <th class="px-4 py-3">İşletme</th>
+        <th class="px-4 py-3">Sektör</th>
+        <th class="px-4 py-3">İlçe</th>
+        <th class="px-4 py-3">Telefon</th>
+        <th class="px-4 py-3">Web</th>
+        <th class="px-4 py-3">Skor</th>
+        <th class="px-4 py-3">CRM</th>
+        <th class="px-4 py-3">Demo</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for b in businesses %}
+      <tr class="hover:bg-slate-50">
+        <td class="px-4 py-3"><a href="/business/{{ b.id }}" class="font-medium hover:text-indigo-600">{{ b.name }}</a></td>
+        <td class="px-4 py-3 text-slate-500">{{ b.sector or "-" }}</td>
+        <td class="px-4 py-3 text-slate-500">{{ b.district or "-" }}</td>
+        <td class="px-4 py-3 text-slate-500">{{ b.phone or "-" }}</td>
+        <td class="px-4 py-3">{% if b.website %}<span class="text-emerald-600">Var</span>{% else %}<span class="text-purple-600 font-medium">Yok</span>{% endif %}</td>
+        <td class="px-4 py-3">
+          {% if b.lead %}
+          <span class="inline-block px-2 py-1 rounded-full text-xs font-semibold border {{ b.lead.lead_level|level_color }}">{{ b.lead.lead_score }} · {{ b.lead.lead_level }}</span>
+          {% else %}-{% endif %}
+        </td>
+        <td class="px-4 py-3">{% if b.lead %}<span class="text-xs px-2 py-0.5 rounded-full {{ b.lead.crm_status|crm_color }}">{{ b.lead.crm_status }}</span>{% endif %}</td>
+        <td class="px-4 py-3">{% if b.demo %}<span class="text-emerald-600">✓</span>{% else %}<span class="text-slate-300">—</span>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="px-4 py-10 text-center text-slate-400">Sonuç yok. <a href="/search" class="text-indigo-600">Arama yapın →</a></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
