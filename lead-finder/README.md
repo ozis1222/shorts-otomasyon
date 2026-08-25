@@ -11,6 +11,19 @@ Web tasarım işi için **potansiyel müşteri (lead) bulma** sistemi.
 
 ---
 
+## 🖱️ En Kolay Yol (Windows — Tek Tık)
+
+Kurulum ve başlatmayı sizin yerinize yapan hazır bir dosya var:
+
+1. `lead-finder` klasörünü açın.
+2. **`BASLAT.bat`** dosyasına **çift tıklayın**.
+3. İlk açılışta paketleri kurar (biraz sürebilir), sonra tarayıcıda paneli açar.
+
+Sonraki açılışlarda yine sadece `BASLAT.bat`'a çift tıklamanız yeterli.
+Manuel kurulum isterseniz aşağıdaki adımları izleyin.
+
+---
+
 ## ⚡ 5 Dakikada Kurulum (Adım Adım)
 
 Bilgisayarınızda sadece **Python 3.10 veya üstü** olması yeterlidir.
