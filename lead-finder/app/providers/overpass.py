@@ -37,11 +37,13 @@ class OverpassProvider(BaseProvider):
             diag["error"] = "Sektor OSM etiketine cevrilemedi."
             return []
 
-        area = geocode_area(city, district)
+        area = geocode_area(city, district, diag)
         if not area:
+            reason = diag.get("http_error")
             diag["error"] = (
-                "Konum bulunamadi (Nominatim). Sehir/ilce yazimini kontrol edin "
-                "veya internet baglantinizi kontrol edin."
+                "Konum bulunamadi (Nominatim). "
+                + (f"Sebep: {reason}. " if reason else "")
+                + "Sehir/ilce yazimini veya internet baglantinizi kontrol edin."
             )
             return []
         diag["area"] = area.display_name
@@ -65,11 +67,13 @@ class OverpassProvider(BaseProvider):
     def _query_and_parse(self, tags, scope, city, district, sector, limit, diag):
         diag["scope"] = scope
         query = self._build_query(tags, scope, limit)
-        data = http_post_json(settings.OVERPASS_URL, data={"data": query})
+        data = http_post_json(settings.OVERPASS_URL, data={"data": query}, diag=diag)
         if data is None:
+            reason = diag.get("http_error")
             diag["error"] = (
-                "Overpass API'ye ulasilamadi (zaman asimi veya baglanti hatasi). "
-                "Birkac dakika sonra tekrar deneyin."
+                "Overpass API'ye ulasilamadi. "
+                + (f"Sebep: {reason}. " if reason else "")
+                + "Birkac dakika sonra tekrar deneyin."
             )
             return [], 0
         if "elements" not in data:

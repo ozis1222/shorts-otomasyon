@@ -32,31 +32,49 @@ def _respect_rate_limit() -> None:
 
 
 def _headers(extra: dict | None = None) -> dict:
-    h = {"User-Agent": settings.USER_AGENT, "Accept-Language": "tr,en;q=0.8"}
+    h = {
+        "User-Agent": settings.USER_AGENT,
+        "Accept": "application/json",
+        "Accept-Language": "tr,en;q=0.8",
+    }
     if extra:
         h.update(extra)
     return h
 
 
 def http_get_json(
-    url: str, params: dict | None = None, timeout: float | None = None
+    url: str,
+    params: dict | None = None,
+    timeout: float | None = None,
+    diag: dict | None = None,
 ) -> Any | None:
+    """JSON GET. Hata olursa None doner ve (verildiyse) diag['http_error']'a
+    gercek sebebi yazar (HTTP durum kodu veya istisna) — teshis icin."""
     _respect_rate_limit()
     try:
         resp = requests.get(
             url,
             params=params,
             headers=_headers(),
-            timeout=timeout or settings.WEBSITE_TIMEOUT_SECONDS,
+            timeout=timeout or 25,
         )
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            if diag is not None:
+                snippet = (resp.text or "")[:120].replace("\n", " ")
+                diag["http_error"] = f"HTTP {resp.status_code} @ {url} :: {snippet}"
+            return None
         return resp.json()
-    except Exception:
+    except Exception as e:
+        if diag is not None:
+            diag["http_error"] = f"{type(e).__name__}: {e}"
         return None
 
 
 def http_post_json(
-    url: str, data: dict | None = None, timeout: float | None = None
+    url: str,
+    data: dict | None = None,
+    timeout: float | None = None,
+    diag: dict | None = None,
 ) -> Any | None:
     _respect_rate_limit()
     try:
@@ -64,9 +82,15 @@ def http_post_json(
             url,
             data=data,
             headers=_headers(),
-            timeout=timeout or 60,
+            timeout=timeout or 90,
         )
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            if diag is not None:
+                snippet = (resp.text or "")[:160].replace("\n", " ")
+                diag["http_error"] = f"HTTP {resp.status_code} @ {url} :: {snippet}"
+            return None
         return resp.json()
-    except Exception:
+    except Exception as e:
+        if diag is not None:
+            diag["http_error"] = f"{type(e).__name__}: {e}"
         return None

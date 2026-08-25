@@ -37,7 +37,7 @@ class GeoArea:
         return None
 
 
-def geocode_area(city: str, district: str) -> GeoArea | None:
+def geocode_area(city: str, district: str, diag: dict | None = None) -> GeoArea | None:
     """Sehir/ilce icin bolge bilgisini dondurur; bulunamazsa None.
 
     Onemli: Nominatim ilk sonuc olarak bazen tek bir NOKTA (place node)
@@ -57,7 +57,7 @@ def geocode_area(city: str, district: str) -> GeoArea | None:
         "polygon_geojson": "0",
     }
     url = f"{settings.NOMINATIM_URL}/search"
-    data = http_get_json(url, params=params)
+    data = http_get_json(url, params=params, diag=diag)
     if not data:
         return None
 
