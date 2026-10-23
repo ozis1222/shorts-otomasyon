@@ -126,6 +126,8 @@ RENDER_MOTORU = (os.environ.get("RENDER_MOTORU") or "remotion").strip().lower()
 REMOTION_DIR  = os.path.join(BASE_DIR, "remotion")
 REMOTION_RUN  = os.path.join(REMOTION_DIR, "public", "run")   # her kosuda yeniden doldurulur
 ANIM_MIN_GORSEL = 4      # bundan az AI gorseli cikarsa stok medyaya (klip/foto) gecilir
+ANIM_ISTEK_ARASI_SN = 6  # Pollinations hiz siniri: basarili kareler arasinda kisa bekleme
+ANIM_GORSEL_BUTCE_SN = 14 * 60   # tum karelere ayrilan en uzun sure (60 dk is limiti icin)
 
 # --- AI gorsel (Pollinations, ucretsiz) ---
 AI_BOYUTLARI = [(1440, 2560), (1080, 1920)]   # once yuksek coz., olmazsa normal
@@ -1437,7 +1439,7 @@ def _filigrani_kirp(path, oran=0.06):
         print("    (filigran kirpilamadi:", str(e)[:60], ")")
 
 
-def _ai_gorsel(query, hedef, stil=None):
+def _ai_gorsel(query, hedef, stil=None, boyutlar=None):
     """
     Pollinations (ucretsiz AI) ile sorguyu BIREBIR cizen YUKSEK COZUNURLUKLU dikey gorsel.
     Once 1440x2560 dener (Ken Burns zoom'u bile buyutme yapmaz), olmazsa 1080x1920.
@@ -1451,13 +1453,15 @@ def _ai_gorsel(query, hedef, stil=None):
         return None
 
     prompt = f"{query}, {stil or _AI_STIL}"
-    for gw, gh in AI_BOYUTLARI:                 # boyut basina TEK deneme -> sure sinirli
+    for gw, gh in (boyutlar or AI_BOYUTLARI):   # boyut basina TEK deneme -> sure sinirli
         seed = random.randint(1, 999999)
         url = ("https://image.pollinations.ai/prompt/" + urllib.parse.quote(prompt) +
                f"?width={gw}&height={gh}&nologo=true&seed={seed}&model={_AI_MODEL}")
         try:
             r = _http_get(url, timeout=90)
             ct = r.headers.get("Content-Type", "")
+            if r.status_code != 200 or not ct.startswith("image"):
+                print(f"    (ai gorsel yaniti: HTTP {r.status_code} {ct[:30]})")
             if r.status_code == 200 and ct.startswith("image"):
                 with open(hedef, "wb") as f:
                     f.write(r.content)
@@ -1994,14 +1998,36 @@ def animasyon_gorselleri(art_prompts, yedek_sorgular):
         except OSError:
             pass
 
+    import time
+    global _AI_ARDISIK_HATA
+    # Pollinations ayni IP'den arka arkaya gelen istekleri kisitliyor (Actions'ta ilk kareden
+    # sonra hepsi reddedildi). Animasyonda her kare onemli: istekler arasi bekle, basarisizsa
+    # artan beklemeyle tekrar dene. Toplam sure butcesi Actions zaman asimini korur.
+    bitis = time.time() + ANIM_GORSEL_BUTCE_SN
     medya = []
     for i, prompt in enumerate(art_prompts):
         hedef = os.path.join(MEDYA_KLASORU, f"anim_{i:02d}.jpg")
         print(f"  Sahne [{i+1}/{len(art_prompts)}]: {prompt[:90]}")
-        if _ai_gorsel(prompt, hedef, stil=_ANIM_STIL):
+        cizildi = False
+        for deneme, bekle in enumerate((0, 12, 25, 45)):
+            if time.time() + bekle > bitis:
+                break
+            if bekle:
+                print(f"    (bekleniyor {bekle} sn, deneme {deneme + 1})")
+                time.sleep(bekle)
+            _AI_ARDISIK_HATA = 0      # kosu geneli devre kesici animasyon karelerini durdurmasin
+            # 1440x2560 artik ucretli (HTTP 402); 1080x1920 ucretsiz ve Remotion icin yeterli
+            if _ai_gorsel(prompt, hedef, stil=_ANIM_STIL, boyutlar=[(1080, 1920)]):
+                cizildi = True
+                break
+        if cizildi:
             medya.append((hedef, "foto"))
+            time.sleep(ANIM_ISTEK_ARASI_SN)
         else:
             print("    -> cizilemedi")
+        if time.time() > bitis:
+            print("    (gorsel sure butcesi doldu)")
+            break
 
     if len(medya) >= min(ANIM_MIN_GORSEL, len(art_prompts)):
         print(f"  Toplam {len(medya)} animasyon karesi hazir.")
