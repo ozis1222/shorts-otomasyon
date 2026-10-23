@@ -733,7 +733,9 @@ def _seo_duzenle(baslik, aciklama, etiketler, konu=""):
 #  5) GEMINI ile konu + senaryo + gorsel kelimeleri uret
 # =========================================================
 def _prompt_kur(gecmis, performans, viraller, reddedilenler):
-    onceki = "\n".join("- " + (k.get("topic") or "") for k in gecmis[-150:] if k.get("topic"))
+    # TUM gecmis verilir: eskiden sadece son 150 konu gidiyordu, model daha eskileri (Oakville,
+    # Gloria Ramirez, L-8, McCabe...) tekrar oneriyor, 8 denemenin hepsi TEKRAR diye reddedilip kosu iptal oluyordu.
+    onceki = "\n".join("- " + (k.get("topic") or "") for k in gecmis if k.get("topic"))
     onceki_baslik = "\n".join("- " + k["title"] for k in gecmis[-40:] if k.get("title"))
     son_turler = _son_farkli_turler(gecmis, 4)
     tur_blok = ", ".join(son_turler) if son_turler else "(none yet)"
