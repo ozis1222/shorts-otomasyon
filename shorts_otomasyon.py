@@ -941,7 +941,9 @@ def _gemini_cagir(prompt):
             "  GitHub: Settings > Secrets and variables > Actions > New secret > GEMINI_API_KEY\n"
             "  Yerel (PowerShell): $env:GEMINI_API_KEY = 'anahtarin'")
 
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    from google.genai import types
+    # Zaman asimi SART: asili kalan tek bir istek tum kosuyu 60 dk is limitine kadar kilitliyordu
+    client = genai.Client(api_key=GEMINI_API_KEY, http_options=types.HttpOptions(timeout=120_000))
     modeller, gorulen = [], set()
     for md in [GEMINI_MODEL, "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash"]:
         if md and md not in gorulen:
@@ -2233,7 +2235,8 @@ def _remotion_render(kompozisyon, props_yol, out_path):
              f"--props={props_yol}", "--codec=h264", f"--video-bitrate={VIDEO_BITRATE.replace('000k', 'M')}",
              f"--audio-bitrate={AUDIO_BITRATE}", f"--x264-preset={X264_PRESET}",
              "--pixel-format=yuv420p", f"--concurrency={os.cpu_count() or 2}", "--log=error"]
-    subprocess.run(komut, cwd=REMOTION_DIR, check=True)
+    # Render ~2-6 dk surer; takilirsa yedek motora gecilsin diye ust sinir
+    subprocess.run(komut, cwd=REMOTION_DIR, check=True, timeout=20 * 60)
 
     # YouTube'da aninda oynasin diye moov atomu basa (+faststart), yeniden kodlama yok
     try:
@@ -2400,8 +2403,14 @@ def stickman_olustur(words, data, thumb_yazi, out_path, thumb_path=None):
         with open(temiz_yol, "w", encoding="utf-8") as f:
             json.dump({**props, "temiz": True}, f, ensure_ascii=False)
         npx = "npx.cmd" if os.name == "nt" else "npx"
-        subprocess.run([npx, "remotion", "still", "src/index.ts", "StickmanShort", thumb_path,
-                        f"--props={temiz_yol}", f"--frame={kare}", "--log=error"], cwd=REMOTION_DIR, check=True)
+        try:
+            subprocess.run([npx, "remotion", "still", "src/index.ts", "StickmanShort", thumb_path,
+                            f"--props={temiz_yol}", f"--frame={kare}", "--log=error"], cwd=REMOTION_DIR, check=True,
+                           timeout=5 * 60)
+        except Exception as e:
+            # Video hazir; thumbnail karesi olmasa da video atilmasin (thumbnail videodan kare alir)
+            print("      (thumbnail karesi cizilemedi, videodan kare kullanilacak:", str(e)[:120], ")")
+            return None
         return thumb_path
     return None
 

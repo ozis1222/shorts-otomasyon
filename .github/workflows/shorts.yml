@@ -78,6 +78,8 @@ jobs:
           PRIVACY:            ${{ inputs.privacy || 'public' }}
           UPLOAD_TO_YOUTUBE:  ${{ inputs.upload || '1' }}
           RENDER_MOTORU:      ${{ inputs.motor || 'remotion' }}
+          # Loglar canli aksin: is zaman asimina ugrarsa nerede takildigi gorunsun
+          PYTHONUNBUFFERED:   "1"
         run: python shorts_otomasyon.py
 
       - name: Hafizayi repoya kaydet (konu gecmisi + performans + gorsel)
