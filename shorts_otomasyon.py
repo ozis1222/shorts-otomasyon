@@ -2331,7 +2331,7 @@ def _stickman_sahneleri(data, dur, gruplar):
                                 "pose": poz if poz in _POZLAR else "idle"})
         if not karakterler:
             karakterler = [{"role": "narrator", "expression": "neutral", "pose": "idle"}]
-        etiket = str(s.get("label") or "").strip()[:14]
+        etiket = str(s.get("label") or "").strip()[:20]
         sahneler.append({"start": round(bas, 3), "end": round(son, 3),
                          "background": bg if bg in _ARKAPLANLAR else "plain",
                          "prop": pr if pr in _OBJELER else "none",
