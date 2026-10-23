@@ -44,14 +44,14 @@ export const Logo: React.FC<{src: string | null}> = ({src}) => {
 };
 
 // Hap seklinde CTA: zipla-gir, kisa sure kal, kaybol.
-export const Cta: React.FC<{metin: string; sureKare: number; renk?: string}> = ({metin, sureKare, renk = '#d10f0f'}) => {
+export const Cta: React.FC<{metin: string; sureKare: number; renk?: string; ust?: string}> = ({metin, sureKare, renk = '#d10f0f', ust = '44%'}) => {
 	const frame = useCurrentFrame();
 	const {fps} = useVideoConfig();
 	const s = spring({frame, fps, config: {damping: 9, stiffness: 220}});
 	const cik = interpolate(frame, [sureKare - 8, sureKare], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
 	const nabiz = 1 + Math.sin(frame / 4) * 0.03;
 	return (
-		<div style={{position: 'absolute', top: '44%', left: 0, right: 0, display: 'flex', justifyContent: 'center', opacity: cik}}>
+		<div style={{position: 'absolute', top: ust, left: 0, right: 0, display: 'flex', justifyContent: 'center', opacity: cik}}>
 			<div
 				style={{
 					transform: `scale(${interpolate(s, [0, 1], [0.2, 1]) * nabiz})`,

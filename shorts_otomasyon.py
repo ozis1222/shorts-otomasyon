@@ -125,6 +125,8 @@ KEN_BURNS_PAN  = 46     # piksel cinsinden kaydirma
 RENDER_MOTORU = (os.environ.get("RENDER_MOTORU") or "remotion").strip().lower()
 REMOTION_DIR  = os.path.join(BASE_DIR, "remotion")
 REMOTION_RUN  = os.path.join(REMOTION_DIR, "public", "run")   # her kosuda yeniden doldurulur
+# Animasyon stili: 'stickman' (varsayilan, kodla cizilen konusan cop adam) | 'illustrasyon' (AI cizimleri)
+RENDER_STIL   = (os.environ.get("RENDER_STIL") or "stickman").strip().lower()
 ANIM_MIN_GORSEL = 4      # bundan az AI gorseli cikarsa stok medyaya (klip/foto) gecilir
 ANIM_ISTEK_ARASI_SN = 6  # Pollinations hiz siniri: basarili kareler arasinda kisa bekleme
 ANIM_GORSEL_BUTCE_SN = 14 * 60   # tum karelere ayrilan en uzun sure (60 dk is limiti icin)
@@ -887,16 +889,24 @@ century every time. It must be a case a curious viewer has almost certainly neve
 - STRICTLY FORBIDDEN: flowers, insects, cute animals, happy people, weddings, food, bright sunny
   nature, modern city life, corporate stock.
 
---- ANIMATION STORYBOARD (the video is an ILLUSTRATED ANIMATION, every frame is drawn by an AI artist) ---
-- "art_prompts": 9 to 11 image prompts, IN NARRATION ORDER, one per beat, evenly covering the script.
-  Each prompt is ONE vivid, concrete, drawable frame in 15-35 words: SUBJECT + ACTION/STATE + SETTING +
-  LIGHT + CAMERA ANGLE (e.g. "low angle", "extreme close-up", "over-the-shoulder", "aerial wide shot",
-  "dutch angle"). Point the camera at the ONE detail being said in that beat (the stopped clock, the
-  overturned chair, the radar screen, the footprints ending in snow).
-- Keep the SAME period, place, clothing and characters across all prompts (continuity like a real
-  animated episode). Describe people by clothing/silhouette/era, NEVER by a real person's face/name.
-- Prompt 1 must be the most visually shocking image of the story (it is the hook frame).
-- NEVER put text, letters, signs, newspapers with readable words or logos in the prompts. No gore.
+--- STICKMAN STORYBOARD (the video is a 2D TALKING-STICKMAN cartoon: thick black outlines, big round
+heads, flat colors - like popular stickman explainer channels; it is drawn in code, NOT by an AI artist) ---
+- "cast": how the people in the story look. Key "subject" = the central real person of the case;
+  optionally "other" = a second person (police, pilot, witness...). The "narrator" is fixed, do not add it.
+  Each look: {{"hair": one of none|short|messy|long|bun|cap|hat, "hair_color": "#RRGGBB",
+  "shirt": "#RRGGBB", "skin": "#RRGGBB", "glasses": true/false, "mustache": true/false, "beard": true/false}}.
+  Match era/role (1900s man -> hat + mustache, pilot -> cap, old professor -> messy white hair + glasses).
+- "scenes": 7 to 10 beats IN NARRATION ORDER, evenly covering the script. Each:
+  {{"background": one of plain|room|night|forest|sea|sky|office|lab|snow|desert|cave|street,
+    "prop": one of none|door|window|chair|table|phone|radio|map|letter|clock|car|ship|plane|lighthouse|
+            house|tree|grave|box|key|footprints|camera|skull|question,
+    "characters": 1-2 of {{"role": "narrator"|"subject"|"other",
+                           "expression": neutral|scared|shocked|sad|thinking|angry|happy,
+                           "pose": idle|point|hands_up|hands_on_head|shrug|walk}},
+    "label": optional 1-3 word sign shown on screen (a year, a place, a number) or ""}}
+  The FIRST character of a scene is the one whose mouth talks. Scene 1 = the hook: "narrator", shocked,
+  pointing at the key prop. Reenact the story with "subject"; return to "narrator" for the twist/ending.
+  Pick the prop that IS the beat (the stopped clock, the empty car, the letter). Vary backgrounds.
 - "case_card": the REAL case identity for an on-screen dossier card: {{"name": "...", "year": "1900",
   "place": "City/Region, Country"}}. Short values (name <= 32 chars, place <= 32 chars).
 - "keywords": 3 to 6 single words FROM THE SCRIPT that should flash in red on screen (numbers, the key
@@ -912,7 +922,8 @@ Return ONLY valid JSON (no markdown, no ```), EXACTLY this shape:
   "thumbnail_text": "2-4 WORD PUNCH",
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"],
   "visual_queries": ["query1", "query2", "query3", "query4", "query5", "query6", "query7", "query8", "query9"],
-  "art_prompts": ["frame 1", "frame 2", "frame 3", "frame 4", "frame 5", "frame 6", "frame 7", "frame 8", "frame 9"],
+  "cast": {{"subject": {{"hair": "hat", "hair_color": "#2b2b2b", "shirt": "#5d4037", "skin": "#e8b07a", "glasses": false, "mustache": true, "beard": false}}}},
+  "scenes": [{{"background": "night", "prop": "lighthouse", "characters": [{{"role": "narrator", "expression": "shocked", "pose": "point"}}], "label": ""}}],
   "case_card": {{"name": "real case name", "year": "YYYY", "place": "place, country"}},
   "keywords": ["word1", "word2", "word3"]
 }}
@@ -2068,9 +2079,9 @@ def _ffmpeg_ses(ff, args, cikis):
     return cikis
 
 
-def _ses_efektleri_uret(ff, dur):
+def _ses_efektleri_uret(ff, dur, ambient=True):
     """Harici asset gerektirmeden FFmpeg ile sentezlenen ses tasarimi."""
-    sfx = {"boom": None, "whoosh": None, "hit": None}
+    sfx = {"boom": None, "whoosh": None, "hit": None, "pop": None}
     amb = None
     try:   # derin ambient drone: brown noise + 55 Hz ugultu, yavas nabiz
         amb = _ffmpeg_ses(ff, [
@@ -2079,7 +2090,7 @@ def _ses_efektleri_uret(ff, dur):
             "-filter_complex",
             f"[0]lowpass=f=170,highpass=f=30,volume={AMBIENT_VOL}[n];[1]volume=0.05,tremolo=f=0.25:d=0.6[d];"
             "[n][d]amix=inputs=2:normalize=0", "-ar", "44100", "-ac", "2"],
-            os.path.join(REMOTION_RUN, "ambient.wav"))
+            os.path.join(REMOTION_RUN, "ambient.wav")) if ambient else None
     except Exception as e:
         print("  (ambient uretilemedi:", str(e)[:80], ")")
     try:   # kanca "boom"u: alcak sinus dususu + gurultu, yavas sonumlenme
@@ -2097,6 +2108,11 @@ def _ses_efektleri_uret(ff, dur):
             "-f", "lavfi", "-i", "anoisesrc=color=white:amplitude=0.6:duration=0.6",
             "-filter_complex", "[0][1]amix=inputs=2:normalize=0,lowpass=f=1200,afade=t=out:st=0.02:d=0.55,volume=2",
             "-ar", "44100", "-ac", "2"], os.path.join(REMOTION_RUN, "hit.wav"))
+        # cizgi film "pop"u: karakter/sahne girisinde kisa, yukari kayan ton
+        sfx["pop"] = _ffmpeg_ses(ff, [
+            "-f", "lavfi", "-i", "sine=frequency=520:duration=0.12",
+            "-af", "vibrato=f=18:d=0.4,afade=t=out:st=0.02:d=0.1,volume=0.9",
+            "-ar", "44100", "-ac", "2"], os.path.join(REMOTION_RUN, "pop.wav"))
     except Exception as e:
         print("  (ses efekti uretilemedi:", str(e)[:80], ")")
     rel = lambda yol: ("run/" + os.path.basename(yol)) if yol else None
@@ -2204,13 +2220,19 @@ def remotion_olustur(words, medya, data, thumb_yazi, out_path):
     with open(props_yol, "w", encoding="utf-8") as f:
         json.dump(props, f, ensure_ascii=False)
 
+    print(f"  Remotion render: {len(sahneler)} sahne, {dur:.1f} sn ...")
+    _remotion_render("MysteryShort", props_yol, out_path)
+
+
+def _remotion_render(kompozisyon, props_yol, out_path):
+    import subprocess
+    ff = _ffmpeg_yolu()
     ham = out_path + ".remotion.mp4"
     npx = "npx.cmd" if os.name == "nt" else "npx"
-    komut = [npx, "remotion", "render", "src/index.ts", "MysteryShort", ham,
+    komut = [npx, "remotion", "render", "src/index.ts", kompozisyon, ham,
              f"--props={props_yol}", "--codec=h264", f"--video-bitrate={VIDEO_BITRATE.replace('000k', 'M')}",
              f"--audio-bitrate={AUDIO_BITRATE}", f"--x264-preset={X264_PRESET}",
              "--pixel-format=yuv420p", f"--concurrency={os.cpu_count() or 2}", "--log=error"]
-    print(f"  Remotion render: {len(sahneler)} sahne, {dur:.1f} sn ...")
     subprocess.run(komut, cwd=REMOTION_DIR, check=True)
 
     # YouTube'da aninda oynasin diye moov atomu basa (+faststart), yeniden kodlama yok
@@ -2220,6 +2242,168 @@ def remotion_olustur(words, medya, data, thumb_yazi, out_path):
         os.remove(ham)
     except Exception:
         os.replace(ham, out_path)
+
+
+# =========================================================
+#  8c) STICKMAN (konusan cop adam) ANIMASYONU - varsayilan stil
+#      Karakterler/dekor Remotion'da SVG olarak cizilir (AI gorseli gerekmez):
+#      her videoda birebir ayni cizim dili, anlatimla senkron konusan agiz.
+# =========================================================
+_IFADELER = {"neutral", "scared", "shocked", "sad", "thinking", "angry", "happy"}
+_POZLAR = {"idle", "point", "hands_up", "hands_on_head", "shrug", "walk"}
+_SACLAR = {"none", "short", "messy", "long", "bun", "cap", "hat"}
+_ARKAPLANLAR = {"plain", "room", "night", "forest", "sea", "sky", "office", "lab", "snow", "desert", "cave", "street"}
+_OBJELER = {"none", "door", "window", "chair", "table", "phone", "radio", "map", "letter", "clock", "car", "ship",
+            "plane", "lighthouse", "house", "tree", "grave", "box", "key", "footprints", "camera", "skull", "question"}
+
+# Kanalin sabit anlaticisi: referanstaki kel, yuvarlak kafali, beyaz tisortlu karakter
+_ANLATICI = {"skin": "#e8b07a", "shirt": "#f4f4f4", "hair": "none", "hairColor": "#2b2b2b",
+             "glasses": False, "mustache": False, "beard": False}
+_YEDEK_KADRO = [
+    {"skin": "#f0a874", "shirt": "#4a4a4a", "hair": "messy", "hairColor": "#f2f2f2", "glasses": True, "mustache": True, "beard": False},
+    {"skin": "#d99a6c", "shirt": "#3d5a80", "hair": "short", "hairColor": "#2b2b2b", "glasses": False, "mustache": False, "beard": False},
+    {"skin": "#f2c29b", "shirt": "#b5523b", "hair": "long", "hairColor": "#6b3e26", "glasses": False, "mustache": False, "beard": False},
+]
+
+
+def _renk(deger, yedek):
+    deger = str(deger or "").strip()
+    return deger if re.fullmatch(r"#[0-9a-fA-F]{6}", deger) else yedek
+
+
+def _gorunum(ham, yedek):
+    ham = ham if isinstance(ham, dict) else {}
+    sac = str(ham.get("hair") or "").lower()
+    return {
+        "skin": _renk(ham.get("skin"), yedek["skin"]),
+        "shirt": _renk(ham.get("shirt"), yedek["shirt"]),
+        "hair": sac if sac in _SACLAR else yedek["hair"],
+        "hairColor": _renk(ham.get("hair_color") or ham.get("hairColor"), yedek["hairColor"]),
+        "glasses": bool(ham.get("glasses", yedek["glasses"])),
+        "mustache": bool(ham.get("mustache", yedek["mustache"])),
+        "beard": bool(ham.get("beard", yedek["beard"])),
+    }
+
+
+def _stickman_sahneleri(data, dur, gruplar):
+    """Gemini'nin storyboard'unu dogrular; eksik/bozuk alanlari guvenli varsayilanlarla doldurur."""
+    ham = data.get("scenes") if isinstance(data, dict) else None
+    ham = [s for s in (ham or []) if isinstance(s, dict)]
+    if len(ham) < 4:   # storyboard yoksa: anlatici + konu kisisi donusumlu, cesitli dekor
+        ham = [{"background": bg, "prop": pr, "characters": ch} for bg, pr, ch in [
+            ("night", "question", [{"role": "narrator", "expression": "shocked", "pose": "point"}]),
+            ("plain", "none", [{"role": "narrator", "expression": "neutral", "pose": "idle"},
+                               {"role": "subject", "expression": "scared", "pose": "hands_on_head"}]),
+            ("room", "clock", [{"role": "subject", "expression": "thinking", "pose": "shrug"}]),
+            ("street", "none", [{"role": "subject", "expression": "scared", "pose": "walk"}]),
+            ("office", "letter", [{"role": "narrator", "expression": "thinking", "pose": "point"}]),
+            ("night", "footprints", [{"role": "subject", "expression": "sad", "pose": "idle"}]),
+            ("plain", "skull", [{"role": "narrator", "expression": "shocked", "pose": "hands_up"}]),
+        ]]
+    ham = ham[:12]
+    zamanlar = _sahne_zamanlari(len(ham), dur, gruplar)
+    sahneler = []
+    for (bas, son), s in zip(zamanlar, ham):
+        bg = str(s.get("background") or "plain").lower()
+        pr = str(s.get("prop") or "none").lower()
+        karakterler = []
+        for k in (s.get("characters") or [])[:2]:
+            if not isinstance(k, dict):
+                continue
+            ifade = str(k.get("expression") or "neutral").lower()
+            poz = str(k.get("pose") or "idle").lower()
+            karakterler.append({"role": str(k.get("role") or "narrator").lower(),
+                                "expression": ifade if ifade in _IFADELER else "neutral",
+                                "pose": poz if poz in _POZLAR else "idle"})
+        if not karakterler:
+            karakterler = [{"role": "narrator", "expression": "neutral", "pose": "idle"}]
+        etiket = str(s.get("label") or "").strip()[:14]
+        sahneler.append({"start": round(bas, 3), "end": round(son, 3),
+                         "background": bg if bg in _ARKAPLANLAR else "plain",
+                         "prop": pr if pr in _OBJELER else "none",
+                         "characters": karakterler, **({"label": etiket} if etiket else {})})
+    return sahneler
+
+
+def stickman_olustur(words, data, thumb_yazi, out_path, thumb_path=None):
+    """Konusan cop adam videosu uretir; thumb_path verilirse temiz bir kareyi PNG olarak da cizer."""
+    import shutil
+    import subprocess
+
+    ff = _ffmpeg_yolu()
+    if os.path.isdir(REMOTION_RUN):
+        shutil.rmtree(REMOTION_RUN, ignore_errors=True)
+    os.makedirs(REMOTION_RUN, exist_ok=True)
+
+    ses = os.path.join(REMOTION_RUN, "ses.wav")
+    try:
+        _ffmpeg_ses(ff, ["-i", AUDIO_FILE, "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", "44100", "-ac", "2"], ses)
+    except Exception:
+        _ffmpeg_ses(ff, ["-i", AUDIO_FILE, "-ar", "44100", "-ac", "2"], ses)
+    dur = max(w["end"] for w in words) + 0.35
+
+    gruplar = kelime_gruplari(words, WORDS_PER_CHUNK)
+    yuvarla = lambda w: {"word": w["word"], "start": round(w["start"], 3), "end": round(w["end"], 3)}
+    captions = [{"start": round(g["start"], 3), "end": round(g["end"], 3),
+                 "words": [yuvarla(w) for w in g["words"]]} for g in gruplar]
+
+    kadro_ham = data.get("cast") if isinstance(data, dict) and isinstance(data.get("cast"), dict) else {}
+    yedek = random.choice(_YEDEK_KADRO)
+    cast = {"narrator": dict(_ANLATICI)}
+    for rol, gor in kadro_ham.items():
+        rol = str(rol).lower()
+        if rol != "narrator":
+            cast[rol] = _gorunum(gor, yedek)
+    cast.setdefault("subject", dict(yedek))
+    cast.setdefault("other", _gorunum({}, _YEDEK_KADRO[(_YEDEK_KADRO.index(yedek) + 1) % len(_YEDEK_KADRO)]))
+    sahneler = _stickman_sahneleri(data, dur, gruplar)
+    for s in sahneler:   # storyboard'da tanimsiz rol -> konu kisisi
+        for k in s["characters"]:
+            if k["role"] not in cast:
+                k["role"] = "subject"
+
+    logo = None
+    if os.path.exists(LOGO_PATH):
+        shutil.copyfile(LOGO_PATH, os.path.join(REMOTION_RUN, "logo.png"))
+        logo = "run/logo.png"
+    _, sfx = _ses_efektleri_uret(ff, dur, ambient=False)
+    anahtar = [str(k) for k in (data.get("keywords") or [])][:6] if isinstance(data, dict) else []
+
+    props = {
+        "duration": round(dur, 3),
+        "audio": "run/ses.wav",
+        "sfx": sfx,
+        "captions": captions,
+        "words": [yuvarla(w) for w in words],
+        "cast": cast,
+        "scenes": sahneler,
+        "caseCard": _dosya_karti(data, words),
+        "headline": (thumb_yazi or "")[:40],
+        "keywords": anahtar,
+        "logo": logo,
+        "subscribeAt": round(dur * 0.45, 2),
+        "watchNextAt": round(max(dur - 2.6, dur * 0.75), 2) if dur > 12 else 0,
+    }
+    props_yol = os.path.join(REMOTION_RUN, "props.json")
+    with open(props_yol, "w", encoding="utf-8") as f:
+        json.dump(props, f, ensure_ascii=False)
+
+    print(f"  Remotion render (stickman): {len(sahneler)} sahne, {dur:.1f} sn ...")
+    _remotion_render("StickmanShort", props_yol, out_path)
+
+    if thumb_path:
+        # Thumbnail tabani: en carpici sahnenin (sok/korku) yazisiz temiz karesi
+        sec = next((s for s in sahneler if any(k["expression"] in ("shocked", "scared") for k in s["characters"])),
+                   sahneler[0])
+        kare = int(((sec["start"] + sec["end"]) / 2) * FPS)
+        temiz_yol = os.path.join(REMOTION_RUN, "props_temiz.json")
+        with open(temiz_yol, "w", encoding="utf-8") as f:
+            json.dump({**props, "temiz": True}, f, ensure_ascii=False)
+        npx = "npx.cmd" if os.name == "nt" else "npx"
+        subprocess.run([npx, "remotion", "still", "src/index.ts", "StickmanShort", thumb_path,
+                        f"--props={temiz_yol}", f"--frame={kare}", "--log=error"], cwd=REMOTION_DIR, check=True)
+        return thumb_path
+    return None
 
 
 # =========================================================
@@ -2496,8 +2680,25 @@ def main():
         raise RuntimeError("edge-tts kelime zamanlamasi dondurmedi. Senaryo bos olabilir.")
 
     anim = RENDER_MOTORU == "remotion" and os.path.isdir(REMOTION_DIR)
+    stick = anim and RENDER_STIL == "stickman"
     art = [str(a).strip() for a in (data.get("art_prompts") or []) if str(a).strip()]
-    if anim:
+    hazir = False
+    medya = []
+    if stick:
+        # Gorsel indirme yok: karakterler ve dekor Remotion'da cizilir
+        print("[4/6] Stickman animasyonu render ediliyor (Remotion)... (birkac dakika surebilir)")
+        try:
+            os.makedirs(MEDYA_KLASORU, exist_ok=True)
+            kare = stickman_olustur(words, data, thumb_yazi, OUTPUT_FILE,
+                                    thumb_path=os.path.join(MEDYA_KLASORU, "stickman_kare.png"))
+            hazir = True
+            if kare:
+                medya = [(kare, "foto")]
+        except Exception as e:
+            print("      (Stickman render basarisiz, AI/stok yedegine geciliyor:", str(e)[:200], ")")
+    if hazir:
+        pass                      # stickman videosu hazir, gorsel gerekmez
+    elif anim:
         # Storyboard yoksa (eski model yaniti / manuel mod) gorsel sorgulari cizim komutu olur
         art = art or [str(q) for q in sorgular]
         print("[4/6] Animasyon kareleri ciziliyor (AI, tek stil)...")
@@ -2507,8 +2708,7 @@ def main():
         medya = arka_plan_indir(sorgular)
 
     # Video + altyazi
-    hazir = False
-    if anim:
+    if anim and not hazir:
         print("[5/6] Animasyon render ediliyor (Remotion)... (birkac dakika surebilir)")
         try:
             remotion_olustur(words, medya, data, thumb_yazi, OUTPUT_FILE)

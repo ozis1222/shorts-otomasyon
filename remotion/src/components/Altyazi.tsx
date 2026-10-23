@@ -5,7 +5,7 @@ import type {AltyaziGrubu} from '../types';
 const temizle = (w: string) => w.toLowerCase().replace(/[^a-z0-9']/g, '');
 
 // Kelime kelime "karaoke" altyazi: aktif kelime sari + buyur, anahtar kelimeler kirmizi kutuda.
-export const Altyazi: React.FC<{gruplar: AltyaziGrubu[]; anahtarlar: string[]}> = ({gruplar, anahtarlar}) => {
+export const Altyazi: React.FC<{gruplar: AltyaziGrubu[]; anahtarlar: string[]; ust?: string}> = ({gruplar, anahtarlar, ust = '60%'}) => {
 	const frame = useCurrentFrame();
 	const {fps} = useVideoConfig();
 	const t = frame / fps;
@@ -32,7 +32,7 @@ export const Altyazi: React.FC<{gruplar: AltyaziGrubu[]; anahtarlar: string[]}> 
 				position: 'absolute',
 				left: 60,
 				right: 60,
-				top: '60%',
+				top: ust,
 				display: 'flex',
 				flexWrap: 'wrap',
 				justifyContent: 'center',
