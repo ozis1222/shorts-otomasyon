@@ -14,3 +14,6 @@ ses.mp3
 shorts_hazir.mp4
 thumbnail.jpg
 medya_gecici/
+
+# Remotion gecici ciktisi
+*.remotion.mp4

@@ -1,0 +1,21 @@
+{
+  "name": "shorts-animasyon",
+  "private": true,
+  "description": "Gizem Shorts'lari icin Remotion animasyon motoru (Python hattindan props.json alir)",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render src/index.ts MysteryShort out.mp4 --props=public/run/props.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.530",
+    "@remotion/fonts": "4.0.530",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "remotion": "4.0.530"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.12",
+    "typescript": "5.9.2"
+  }
+}

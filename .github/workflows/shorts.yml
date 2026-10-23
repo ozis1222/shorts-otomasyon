@@ -1,7 +1,11 @@
 name: Shorts Otomasyon
 
 on:
-  workflow_dispatch:   # cron-job.org (girdisiz -> varsayilanlar) veya elle tetikler
+  # HER GUN otomatik yayin: 15:17 UTC = 18:17 Turkiye = 11:17 ABD Dogu (Ingilizce izleyici sabahi).
+  # GitHub zamanlanmis isleri yogunlukta birkac dakika gecikebilir; dakika bilerek :00 degil.
+  schedule:
+    - cron: "17 15 * * *"
+  workflow_dispatch:   # elle (veya cron-job.org ile) ek video icin
     inputs:
       privacy:
         description: "YouTube gizlilik"
@@ -12,6 +16,11 @@ on:
         description: "YouTube'a yukle? 1=evet, 0=sadece uret (artifact olarak indirilir)"
         type: string
         default: "1"
+      motor:
+        description: "Render motoru: remotion = animasyon, moviepy = eski stok klip"
+        type: choice
+        default: "remotion"
+        options: [remotion, moviepy]
 
 # Ayni anda iki kosu calisirsa hafiza dosyalari (gecmis.json) catisir -> sirayla calissin
 concurrency:
@@ -39,6 +48,19 @@ jobs:
       - name: Kutuphaneleri kur
         run: pip install -r requirements.txt
 
+      - name: Node kur (Remotion animasyon motoru)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: remotion/package-lock.json
+
+      - name: Remotion bagimliliklari + headless Chrome
+        working-directory: remotion
+        run: |
+          npm ci --no-audit --no-fund
+          npx remotion browser ensure
+
       - name: Gizli dosyalari olustur
         env:
           CLIENT_SECRET_JSON: ${{ secrets.CLIENT_SECRET_JSON }}
@@ -55,6 +77,7 @@ jobs:
           # Elle tetiklemede secilebilir; cron (girdisiz) -> public + yukle (eski davranis)
           PRIVACY:            ${{ inputs.privacy || 'public' }}
           UPLOAD_TO_YOUTUBE:  ${{ inputs.upload || '1' }}
+          RENDER_MOTORU:      ${{ inputs.motor || 'remotion' }}
         run: python shorts_otomasyon.py
 
       - name: Hafizayi repoya kaydet (konu gecmisi + performans + gorsel)

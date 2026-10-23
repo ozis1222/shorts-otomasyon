@@ -3,7 +3,40 @@
 Tam otomatik YouTube Shorts uretimi: konu bulur, senaryo yazar, seslendirir, gorselleri toplar,
 1080x1920 video kurgular, thumbnail uretir ve YouTube'a yukler.
 
-GitHub Actions uzerinde `workflow_dispatch` ile calisir (cron-job.org tetikler).
+GitHub Actions uzerinde **her gun otomatik** calisir (`schedule`: 15:17 UTC = 18:17 Turkiye).
+Elle ya da cron-job.org ile `workflow_dispatch` tetiklenerek ek video da uretilebilir.
+
+> cron-job.org da hala tetikliyorsa gunde birden fazla video cikar. Gunde sadece 1 video
+> istiyorsan cron-job.org'daki isi kapat.
+
+---
+
+## Animasyon motoru (Remotion) - varsayilan
+
+Videolar artik stok klip montaji degil, **animasyon tarzinda** uretilir (`remotion/` klasoru):
+
+1. Gemini senaryoyla birlikte bir **storyboard** yazar (`art_prompts`: anlatim sirasinda 9-11 kare,
+   ayni donem/mekan/karakter surekliligiyle), bir **dosya karti** (`case_card`: gercek isim, yil, yer)
+   ve ekranda kirmizi parlayacak **anahtar kelimeler** (`keywords`).
+2. Her kare Pollinations ile **tek bir cizim stilinde** (karanlik 2D animasyon / grafik roman,
+   teal-amber palet) cizilir -> her video ayni animasyon dizisinin bolumu gibi gorunur.
+3. Remotion bu kareleri canlandirir:
+   - kamera hareketleri (push-in, pan, tilt, dutch) + **2.5D parallax** derinlik
+   - sis, suzulen toz, isik huzmesi, ampul titremesi, film grain, vinyet
+   - sahne gecisleri: zoom dalisi, glitch, flas, iris
+   - **karaoke altyazi** (konusulan kelime sari, anahtar kelimeler kirmizi kutuda)
+   - ustte carpan **manset** (thumbnail yazisi), daktiloyla yazilan **CASE FILE** karti +
+     CLASSIFIED muhru, SUBSCRIBE / WATCH NEXT, ilerleme cubugu, logo
+   - FFmpeg ile sentezlenen ses tasarimi: acilis "boom"u, gecis "whoosh"lari, muhur vurusu,
+     derin ambient ugultu; anlatim -14 LUFS'a normalize edilir
+4. Kesmeler altyazi gruplarinin basina oturtulur (cumle ortasinda kesme olmaz), ilk kesme ~1.8 sn'de.
+
+Yedekler: AI gorseli yeterince cikmazsa stok klip/fotolara gecilir; Remotion herhangi bir sebeple
+hata verirse video eski MoviePy motoruyla uretilir. Yani hat asla kirilmaz.
+
+Eski motora donmek icin: `RENDER_MOTORU=moviepy` (Actions'ta elle tetiklerken `motor` secimi).
+
+Onizleme (yerelde): `cd remotion && npm install && npm run studio`
 
 ---
 
@@ -184,7 +217,10 @@ python shorts_otomasyon.py
 ```
 
 Ayarlanabilir ortam degiskenleri: `GEMINI_MODEL`, `VOICE`, `PRIVACY`, `VIDEO_BITRATE`,
-`X264_PRESET`, `UPLOAD_TO_YOUTUBE`, `MANUAL_MODE`.
+`X264_PRESET`, `UPLOAD_TO_YOUTUBE`, `MANUAL_MODE`, `RENDER_MOTORU` (`remotion` / `moviepy`).
+
+Remotion motoru icin Node.js 18+ gerekir: `cd remotion && npm install` (ilk calistirmada headless
+Chrome otomatik indirilir).
 
 ---
 

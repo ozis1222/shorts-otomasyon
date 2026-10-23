@@ -14,8 +14,10 @@ Akis (her calistirmada sirayla, elle hicbir sey yapmadan):
   2) edge-tts            -> senaryoyu Ingilizce dogal sesle okur -> ses.mp3
   3) Pixabay/Pexels/AI   -> KONUYA GORE otomatik arka plan medyasi indirir
                             (SADECE 1080x1920'yi bozmayan yuksek cozunurluk kabul edilir)
-  4) MoviePy             -> 1080x1920 dikey montaj + senkron sari altyazi
-                            + hizli sahne kesme (retention) + marka/CTA
+  4) Remotion (varsayilan) -> AI ile cizilen sahnelerden ANIMASYONLU 1080x1920 video:
+                            kamera hareketleri, parallax, sis/toz/isik efektleri, gecisler,
+                            karaoke altyazi, "CASE FILE" karti, ses efektleri + ambient
+     MoviePy (yedek)       -> Remotion calismazsa eski stok-klip montaji (hat asla kirilmaz)
   5) PIL                 -> otomatik tiklanma odakli THUMBNAIL uretir
   6) YouTube Data API v3 -> videoyu yukler + thumbnail'i basar
 
@@ -116,6 +118,14 @@ MAX_SAHNE         = 18      # toplam kesme sayisi ust siniri (render suresi kont
 # --- Ken Burns (foto/AI gorseli "klip gibi" hareket ettiren sinematik zoom+kaydirma) ---
 KEN_BURNS_ZOOM = 0.20   # sahne sonunda %20 zoom
 KEN_BURNS_PAN  = 46     # piksel cinsinden kaydirma
+
+# --- RENDER MOTORU ---
+#  'remotion' (varsayilan): AI illustrasyonlarindan animasyon tarzi video (remotion/ klasoru)
+#  'moviepy'              : eski stok-klip montaji. Remotion hata verirse otomatik buna dusulur.
+RENDER_MOTORU = (os.environ.get("RENDER_MOTORU") or "remotion").strip().lower()
+REMOTION_DIR  = os.path.join(BASE_DIR, "remotion")
+REMOTION_RUN  = os.path.join(REMOTION_DIR, "public", "run")   # her kosuda yeniden doldurulur
+ANIM_MIN_GORSEL = 4      # bundan az AI gorseli cikarsa stok medyaya (klip/foto) gecilir
 
 # --- AI gorsel (Pollinations, ucretsiz) ---
 AI_BOYUTLARI = [(1440, 2560), (1080, 1920)]   # once yuksek coz., olmazsa normal
@@ -873,6 +883,21 @@ century every time. It must be a case a curious viewer has almost certainly neve
 - STRICTLY FORBIDDEN: flowers, insects, cute animals, happy people, weddings, food, bright sunny
   nature, modern city life, corporate stock.
 
+--- ANIMATION STORYBOARD (the video is an ILLUSTRATED ANIMATION, every frame is drawn by an AI artist) ---
+- "art_prompts": 9 to 11 image prompts, IN NARRATION ORDER, one per beat, evenly covering the script.
+  Each prompt is ONE vivid, concrete, drawable frame in 15-35 words: SUBJECT + ACTION/STATE + SETTING +
+  LIGHT + CAMERA ANGLE (e.g. "low angle", "extreme close-up", "over-the-shoulder", "aerial wide shot",
+  "dutch angle"). Point the camera at the ONE detail being said in that beat (the stopped clock, the
+  overturned chair, the radar screen, the footprints ending in snow).
+- Keep the SAME period, place, clothing and characters across all prompts (continuity like a real
+  animated episode). Describe people by clothing/silhouette/era, NEVER by a real person's face/name.
+- Prompt 1 must be the most visually shocking image of the story (it is the hook frame).
+- NEVER put text, letters, signs, newspapers with readable words or logos in the prompts. No gore.
+- "case_card": the REAL case identity for an on-screen dossier card: {{"name": "...", "year": "1900",
+  "place": "City/Region, Country"}}. Short values (name <= 32 chars, place <= 32 chars).
+- "keywords": 3 to 6 single words FROM THE SCRIPT that should flash in red on screen (numbers, the key
+  object, the shocking verb).
+
 Return ONLY valid JSON (no markdown, no ```), EXACTLY this shape:
 {{
   "topic": "short specific topic label naming the actual case",
@@ -882,7 +907,10 @@ Return ONLY valid JSON (no markdown, no ```), EXACTLY this shape:
   "description": "2-3 sentence description, then a few relevant hashtags",
   "thumbnail_text": "2-4 WORD PUNCH",
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"],
-  "visual_queries": ["query1", "query2", "query3", "query4", "query5", "query6", "query7", "query8", "query9"]
+  "visual_queries": ["query1", "query2", "query3", "query4", "query5", "query6", "query7", "query8", "query9"],
+  "art_prompts": ["frame 1", "frame 2", "frame 3", "frame 4", "frame 5", "frame 6", "frame 7", "frame 8", "frame 9"],
+  "case_card": {{"name": "real case name", "year": "YYYY", "place": "place, country"}},
+  "keywords": ["word1", "word2", "word3"]
 }}
 """
 
@@ -944,6 +972,10 @@ def gemini_uret(performans, viraller):
     gecmis = gecmisi_oku()
     print(f"      Hafizada {len(gecmis)} islenmis konu var (hicbiri tekrar edilmeyecek)")
     reddedilenler = []
+    # Sadece USLUP sebebiyle (hook / yasak kelime / tarih / tur rotasyonu) reddedilen ama
+    # TEKRAR OLMAYAN son fikir. Hicbir fikir tum kurallardan gecemezse kosuyu iptal etmek
+    # yerine bu kullanilir -> "her gun bir video" garantisi. Tekrar eden konu ASLA buraya girmez.
+    yedek = None
 
     for tur in range(1, DENEME_SAYISI + 1):
         kati = tur <= KATI_DENEME
@@ -967,12 +999,14 @@ def gemini_uret(performans, viraller):
         if hsorun:
             reddedilenler.append(konu)
             print(f"      [{tur}] ZAYIF HOOK reddedildi -> {hsorun}")
+            yedek = data
             continue
 
         yk = _yasak_kelime_var(script, baslik)
         if yk:
             reddedilenler.append(konu)
             print(f"      [{tur}] YASAK KELIME reddedildi -> '{yk}' (olayi anlat, etiketleme)")
+            yedek = data
             continue
 
         # GERCEK, TARIHLI VAKA garantisi: yasanmis bir olay her zaman bir tarih icerir.
@@ -982,6 +1016,7 @@ def gemini_uret(performans, viraller):
                 or re.search(r"\b(\d{1,4}\s?(?:ad|bc|ce|bce)|centur(?:y|ies))\b", script, re.I)):
             reddedilenler.append(konu)
             print(f"      [{tur}] TARIH YOK reddedildi -> script gercek bir yil/tarih icermiyor (isimli-tarihli olmali)")
+            yedek = data
             continue
 
         ttype = (data.get("topic_type") or "").strip().lower()
@@ -989,10 +1024,16 @@ def gemini_uret(performans, viraller):
         if ttype and ttype in yasak_tur:
             reddedilenler.append(konu)
             print(f"      [{tur}] TUR TEKRARI reddedildi -> '{ttype}' (son turler: {yasak_tur})")
+            yedek = data
             continue
 
         print(f"      [{tur}] onaylandi: {konu}  [tur: {ttype or '-'}]")
         return data
+
+    if yedek:
+        print(f"      Tum kurallardan gecen fikir cikmadi -> tekrar OLMAYAN son fikir kullaniliyor: "
+              f"{(yedek.get('topic') or '').strip()}")
+        return yedek
 
     raise RuntimeError(
         f"Gemini {DENEME_SAYISI} denemede de benzersiz bir hikaye uretemedi. "
@@ -1106,6 +1147,7 @@ def kelime_gruplari(words, n):
             "text":  " ".join(w["word"] for w in parca).upper(),
             "start": parca[0]["start"],
             "end":   parca[-1]["end"],
+            "words": parca,
         })
     return gruplar
 
@@ -1274,6 +1316,11 @@ _YASAK_ETIKET = (
 _AI_STIL  = ("dark mysterious, eerie, cinematic film still, moody dramatic lighting, volumetric fog, "
              "photorealistic, ultra detailed, sharp focus, 8k, suspenseful atmosphere, vertical composition")
 _AI_MODEL = "flux"
+# Animasyon modu: TUM sahneler ayni cizim dilinde -> kanal kimligi + "animasyon dizisi" hissi
+_ANIM_STIL = ("dark atmospheric 2D animated film still, painterly digital illustration, graphic novel "
+              "style, bold ink shadows, dramatic rim lighting, volumetric fog, muted teal and amber "
+              "palette, cinematic composition, highly detailed, eerie suspenseful mood, vertical 9:16 "
+              "frame, no text, no letters, no watermark")
 _ATMOSFER = "dark mysterious eerie cinematic"
 _TEMA_KELIMELER = ("dark", "night", "fog", "mist", "shadow", "abandoned", "forest", "storm", "snow",
                    "mountain", "ocean", "cave", "old", "ruins", "graveyard", "document", "road", "eerie",
@@ -1375,7 +1422,20 @@ _AI_ARDISIK_HATA = 0
 AI_HATA_SINIRI = 3     # servis coktuyse her sahnede bosuna beklemeyelim (Actions zaman asimi korumasi)
 
 
-def _ai_gorsel(query, hedef):
+def _filigrani_kirp(path, oran=0.06):
+    """Pollinations, nologo=true olsa da sag alt koseye 'pollinations.ai' yazisi basiyor.
+    Alt seridi kirp -> videoda ve thumbnail'de filigran gorunmez (cover ile yine tam ekran)."""
+    try:
+        from PIL import Image
+        with Image.open(path) as im:
+            w, h = im.size
+            kirpik = im.convert("RGB").crop((0, 0, w, int(h * (1 - oran))))
+        kirpik.save(path, quality=95)
+    except Exception as e:
+        print("    (filigran kirpilamadi:", str(e)[:60], ")")
+
+
+def _ai_gorsel(query, hedef, stil=None):
     """
     Pollinations (ucretsiz AI) ile sorguyu BIREBIR cizen YUKSEK COZUNURLUKLU dikey gorsel.
     Once 1440x2560 dener (Ken Burns zoom'u bile buyutme yapmaz), olmazsa 1080x1920.
@@ -1388,7 +1448,7 @@ def _ai_gorsel(query, hedef):
     if _AI_ARDISIK_HATA >= AI_HATA_SINIRI:
         return None
 
-    prompt = f"{query}, {_AI_STIL}"
+    prompt = f"{query}, {stil or _AI_STIL}"
     for gw, gh in AI_BOYUTLARI:                 # boyut basina TEK deneme -> sure sinirli
         seed = random.randint(1, 999999)
         url = ("https://image.pollinations.ai/prompt/" + urllib.parse.quote(prompt) +
@@ -1400,6 +1460,7 @@ def _ai_gorsel(query, hedef):
                 with open(hedef, "wb") as f:
                     f.write(r.content)
                 if os.path.getsize(hedef) > 12000:
+                    _filigrani_kirp(hedef)
                     _keskinlestir(hedef)
                     print(f"    (AI gorsel {gw}x{gh})")
                     _AI_ARDISIK_HATA = 0
@@ -1909,6 +1970,231 @@ def video_olustur(words, medya, out_path):
 
 
 # =========================================================
+#  8b) REMOTION ANIMASYON MOTORU
+#      Python: senaryo + ses + kelime zamani + AI cizimleri hazirlar, props.json yazar.
+#      Remotion (remotion/ klasoru): kamera hareketi, parallax, sis/toz/isik, gecisler,
+#      karaoke altyazi, CASE FILE karti, CTA'lar, ses efektleri -> 1080x1920 mp4.
+# =========================================================
+_KAMERALAR = ["pushIn", "panLeft", "tiltUp", "pullOut", "dutch", "panRight", "pushIn", "tiltDown"]
+_GECISLER  = ["zoom", "glitch", "zoom", "flash", "iris", "glitch"]
+
+
+def animasyon_gorselleri(art_prompts, yedek_sorgular):
+    """
+    Her storyboard karesi icin ayni cizim stilinde AI illustrasyonu uretir.
+    Yeterince gorsel cikmazsa (servis cokuk vb.) eski stok medya zincirine duser.
+    [(yol, tur), ...] dondurur (thumbnail_olustur ile ayni format).
+    """
+    os.makedirs(MEDYA_KLASORU, exist_ok=True)
+    for eski in os.listdir(MEDYA_KLASORU):
+        try:
+            os.remove(os.path.join(MEDYA_KLASORU, eski))
+        except OSError:
+            pass
+
+    medya = []
+    for i, prompt in enumerate(art_prompts):
+        hedef = os.path.join(MEDYA_KLASORU, f"anim_{i:02d}.jpg")
+        print(f"  Sahne [{i+1}/{len(art_prompts)}]: {prompt[:90]}")
+        if _ai_gorsel(prompt, hedef, stil=_ANIM_STIL):
+            medya.append((hedef, "foto"))
+        else:
+            print("    -> cizilemedi")
+
+    if len(medya) >= min(ANIM_MIN_GORSEL, len(art_prompts)):
+        print(f"  Toplam {len(medya)} animasyon karesi hazir.")
+        return medya
+
+    print(f"  Sadece {len(medya)} AI karesi cikti -> stok medya zincirine geciliyor.")
+    return arka_plan_indir(yedek_sorgular)
+
+
+def _sahne_zamanlari(n, dur, gruplar):
+    """
+    n sahneyi sureye yayar; her kesmeyi en yakin ALTYAZI GRUBU baslangicina oturtur
+    (kesme bir kelimenin ortasinda degil, yeni cumle parcasinda olur). Ilk kesme erken
+    (~1.8 sn) -> kancadan hemen sonra goruntu degisir (pattern interrupt).
+    """
+    if n <= 1:
+        return [(0.0, dur)]
+    hedefler = [1.8] + [1.8 + (dur - 1.8) * k / (n - 1) for k in range(1, n - 1)]
+    baslar = [g["start"] for g in gruplar] or [dur * k / n for k in range(n)]
+    kesmeler, son = [], 0.0
+    for h in hedefler:
+        aday = min(baslar, key=lambda b: abs(b - h))
+        if aday - son < 1.2 or aday > dur - 1.0:      # cok kisa sahne olmasin
+            aday = h
+        kesmeler.append(max(son + 1.0, aday))
+        son = kesmeler[-1]
+    zamanlar, bas = [], 0.0
+    for k in kesmeler:
+        zamanlar.append((bas, k))
+        bas = k
+    zamanlar.append((bas, dur))
+    return zamanlar
+
+
+def _ffmpeg_ses(ff, args, cikis):
+    import subprocess
+    subprocess.run([ff, "-y", *args, cikis], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    return cikis
+
+
+def _ses_efektleri_uret(ff, dur):
+    """Harici asset gerektirmeden FFmpeg ile sentezlenen ses tasarimi."""
+    sfx = {"boom": None, "whoosh": None, "hit": None}
+    amb = None
+    try:   # derin ambient drone: brown noise + 55 Hz ugultu, yavas nabiz
+        amb = _ffmpeg_ses(ff, [
+            "-f", "lavfi", "-i", f"anoisesrc=color=brown:amplitude=0.7:duration={dur + 2:.2f}:seed=7",
+            "-f", "lavfi", "-i", f"sine=frequency=55:duration={dur + 2:.2f}",
+            "-filter_complex",
+            f"[0]lowpass=f=170,highpass=f=30,volume={AMBIENT_VOL}[n];[1]volume=0.05,tremolo=f=0.25:d=0.6[d];"
+            "[n][d]amix=inputs=2:normalize=0", "-ar", "44100", "-ac", "2"],
+            os.path.join(REMOTION_RUN, "ambient.wav"))
+    except Exception as e:
+        print("  (ambient uretilemedi:", str(e)[:80], ")")
+    try:   # kanca "boom"u: alcak sinus dususu + gurultu, yavas sonumlenme
+        sfx["boom"] = _ffmpeg_ses(ff, [
+            "-f", "lavfi", "-i", "sine=frequency=46:duration=2.2",
+            "-f", "lavfi", "-i", "anoisesrc=color=brown:amplitude=0.8:duration=2.2",
+            "-filter_complex", "[0][1]amix=inputs=2:normalize=0,lowpass=f=200,afade=t=out:st=0.08:d=2.1,volume=2.4",
+            "-ar", "44100", "-ac", "2"], os.path.join(REMOTION_RUN, "boom.wav"))
+        sfx["whoosh"] = _ffmpeg_ses(ff, [
+            "-f", "lavfi", "-i", "anoisesrc=color=pink:amplitude=0.9:duration=0.7",
+            "-af", "highpass=f=300,lowpass=f=4000,afade=t=in:d=0.35,afade=t=out:st=0.35:d=0.35,volume=1.4",
+            "-ar", "44100", "-ac", "2"], os.path.join(REMOTION_RUN, "whoosh.wav"))
+        sfx["hit"] = _ffmpeg_ses(ff, [
+            "-f", "lavfi", "-i", "sine=frequency=90:duration=0.6",
+            "-f", "lavfi", "-i", "anoisesrc=color=white:amplitude=0.6:duration=0.6",
+            "-filter_complex", "[0][1]amix=inputs=2:normalize=0,lowpass=f=1200,afade=t=out:st=0.02:d=0.55,volume=2",
+            "-ar", "44100", "-ac", "2"], os.path.join(REMOTION_RUN, "hit.wav"))
+    except Exception as e:
+        print("  (ses efekti uretilemedi:", str(e)[:80], ")")
+    rel = lambda yol: ("run/" + os.path.basename(yol)) if yol else None
+    return rel(amb), {k: rel(v) for k, v in sfx.items()}
+
+
+def _dosya_karti(data, words):
+    kart = data.get("case_card") if isinstance(data, dict) else None
+    if not isinstance(kart, dict):
+        return None
+    ad = str(kart.get("name") or "").strip()[:34]
+    yil = str(kart.get("year") or "").strip()[:12]
+    yer = str(kart.get("place") or "").strip()[:34]
+    if not (ad or yil):
+        return None
+    # Kart, anlaticinin yili soyledigi anda gelsin (yoksa kancadan hemen sonra)
+    bas = 2.4
+    for w in words:
+        if yil and yil[:4] in w["word"]:
+            bas = w["start"] - 0.3
+            break
+    return {"name": ad, "year": yil, "place": yer, "start": round(max(1.6, bas), 2)}
+
+
+def _bulanik_kopya(yol):
+    """Parallax arka katmani icin kucuk + bulanik + koyu kopya (Remotion'da canli blur pahali)."""
+    bg = os.path.splitext(yol)[0] + "_bg.jpg"
+    if os.path.exists(bg):
+        return "run/" + os.path.basename(bg)
+    try:
+        from PIL import Image, ImageFilter, ImageEnhance
+        with Image.open(yol) as im:
+            k = im.convert("RGB").resize((360, 640))
+        k = ImageEnhance.Brightness(k.filter(ImageFilter.GaussianBlur(5))).enhance(0.7)
+        k.save(bg, quality=85)
+        return "run/" + os.path.basename(bg)
+    except Exception:
+        return None
+
+
+def remotion_olustur(words, medya, data, thumb_yazi, out_path):
+    import shutil
+    import subprocess
+
+    ff = _ffmpeg_yolu()
+    if os.path.isdir(REMOTION_RUN):
+        shutil.rmtree(REMOTION_RUN, ignore_errors=True)
+    os.makedirs(REMOTION_RUN, exist_ok=True)
+
+    # Anlatim: yayin seviyesine normalize (-14 LUFS, Shorts standardi)
+    ses = os.path.join(REMOTION_RUN, "ses.wav")
+    try:
+        _ffmpeg_ses(ff, ["-i", AUDIO_FILE, "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", "44100", "-ac", "2"], ses)
+    except Exception:
+        _ffmpeg_ses(ff, ["-i", AUDIO_FILE, "-ar", "44100", "-ac", "2"], ses)
+    dur = max(w["end"] for w in words) + 0.35
+
+    gruplar = kelime_gruplari(words, WORDS_PER_CHUNK)
+    captions = [{"start": round(g["start"], 3), "end": round(g["end"], 3),
+                 "words": [{"word": w["word"], "start": round(w["start"], 3), "end": round(w["end"], 3)}
+                           for w in g["words"]]} for g in gruplar]
+
+    # Sahneler: medya sayisi az ise HEDEF_SAHNE_SN'yi korumak icin gorseller farkli kamera ile tekrar
+    n = max(len(medya), min(MAX_SAHNE, math.ceil(dur / HEDEF_SAHNE_SN)))
+    sahneler = []
+    for i, (bas, son) in enumerate(_sahne_zamanlari(n, dur, gruplar)):
+        src, tur, bg = None, "foto", None
+        if medya:
+            yol, tur = medya[i % len(medya)]
+            ad = f"sahne_{i % len(medya):02d}" + os.path.splitext(yol)[1].lower()
+            hedef = os.path.join(REMOTION_RUN, ad)
+            if not os.path.exists(hedef):
+                shutil.copyfile(yol, hedef)
+            src = "run/" + ad
+            bg = _bulanik_kopya(hedef) if tur != "video" else None
+        sahneler.append({"src": src, "bg": bg,
+                         "kind": "video" if tur == "video" else "image",
+                         "start": round(bas, 3), "end": round(son, 3),
+                         "camera": _KAMERALAR[i % len(_KAMERALAR)],
+                         "transition": _GECISLER[i % len(_GECISLER)]})
+
+    logo = None
+    if os.path.exists(LOGO_PATH):
+        shutil.copyfile(LOGO_PATH, os.path.join(REMOTION_RUN, "logo.png"))
+        logo = "run/logo.png"
+
+    ambient, sfx = _ses_efektleri_uret(ff, dur) if AMBIENT_SES else (None, {"boom": None, "whoosh": None, "hit": None})
+    anahtar = [str(k) for k in (data.get("keywords") or [])][:6] if isinstance(data, dict) else []
+
+    props = {
+        "duration": round(dur, 3),
+        "audio": "run/ses.wav",
+        "ambient": ambient,
+        "sfx": sfx,
+        "captions": captions,
+        "scenes": sahneler,
+        "caseCard": _dosya_karti(data, words),
+        "headline": (thumb_yazi or "")[:40],
+        "keywords": anahtar,
+        "logo": logo,
+        "subscribeAt": round(dur * 0.45, 2),
+        "watchNextAt": round(max(dur - 2.6, dur * 0.75), 2) if dur > 12 else 0,
+    }
+    props_yol = os.path.join(REMOTION_RUN, "props.json")
+    with open(props_yol, "w", encoding="utf-8") as f:
+        json.dump(props, f, ensure_ascii=False)
+
+    ham = out_path + ".remotion.mp4"
+    npx = "npx.cmd" if os.name == "nt" else "npx"
+    komut = [npx, "remotion", "render", "src/index.ts", "MysteryShort", ham,
+             f"--props={props_yol}", "--codec=h264", f"--video-bitrate={VIDEO_BITRATE.replace('000k', 'M')}",
+             f"--audio-bitrate={AUDIO_BITRATE}", f"--x264-preset={X264_PRESET}",
+             "--pixel-format=yuv420p", f"--concurrency={os.cpu_count() or 2}", "--log=error"]
+    print(f"  Remotion render: {len(sahneler)} sahne, {dur:.1f} sn ...")
+    subprocess.run(komut, cwd=REMOTION_DIR, check=True)
+
+    # YouTube'da aninda oynasin diye moov atomu basa (+faststart), yeniden kodlama yok
+    try:
+        subprocess.run([ff, "-y", "-i", ham, "-c", "copy", "-movflags", "+faststart", out_path],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        os.remove(ham)
+    except Exception:
+        os.replace(ham, out_path)
+
+
+# =========================================================
 #  9) OTOMATIK THUMBNAIL (tiklanma orani icin)
 # =========================================================
 def _kare_puani(kare):
@@ -2138,6 +2424,7 @@ def youtube_yukle(dosya, baslik, aciklama, etiket_listesi, thumb_path=None):
 # =========================================================
 def main():
     performans, viraller = None, []
+    data = {}
 
     if MANUAL_MODE:
         script     = senaryo_metni
@@ -2180,13 +2467,29 @@ def main():
     if not words:
         raise RuntimeError("edge-tts kelime zamanlamasi dondurmedi. Senaryo bos olabilir.")
 
-    # KONUYA GORE yuksek cozunurluklu arka plan
-    print("[4/6] Yuksek cozunurluklu arka plan medyasi indiriliyor...")
-    medya = arka_plan_indir(sorgular)
+    anim = RENDER_MOTORU == "remotion" and os.path.isdir(REMOTION_DIR)
+    art = [str(a).strip() for a in (data.get("art_prompts") or []) if str(a).strip()]
+    if anim:
+        # Storyboard yoksa (eski model yaniti / manuel mod) gorsel sorgulari cizim komutu olur
+        art = art or [str(q) for q in sorgular]
+        print("[4/6] Animasyon kareleri ciziliyor (AI, tek stil)...")
+        medya = animasyon_gorselleri(art, sorgular)
+    else:
+        print("[4/6] Yuksek cozunurluklu arka plan medyasi indiriliyor...")
+        medya = arka_plan_indir(sorgular)
 
     # Video + altyazi
-    print("[5/6] Video kurgulaniyor (MoviePy)... (biraz surebilir)")
-    video_olustur(words, medya, OUTPUT_FILE)
+    hazir = False
+    if anim:
+        print("[5/6] Animasyon render ediliyor (Remotion)... (birkac dakika surebilir)")
+        try:
+            remotion_olustur(words, medya, data, thumb_yazi, OUTPUT_FILE)
+            hazir = True
+        except Exception as e:
+            print("      (Remotion basarisiz, MoviePy yedek motoruna geciliyor:", str(e)[:200], ")")
+    if not hazir:
+        print("[5/6] Video kurgulaniyor (MoviePy)... (biraz surebilir)")
+        video_olustur(words, medya, OUTPUT_FILE)
     print("      Video hazir ->", OUTPUT_FILE)
 
     # Thumbnail

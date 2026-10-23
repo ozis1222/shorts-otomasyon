@@ -1,0 +1,4 @@
+node_modules/
+out.mp4
+# Her kosuda Python hatti doldurur (ses, gorseller, props.json)
+public/run/
