@@ -64,14 +64,16 @@ export const SahneKatmani: React.FC<{sahne: Sahne; sureKare: number; sira: numbe
 		);
 	};
 
+	// Olcek asla 1.02'nin altina inmesin: aksi halde kenarlarda siyah cerceve gorunur
+	// (kanca 'carpma'si geri sekerken ve video katmaninda olcek < 1 oluyordu).
 	const donusum = (carpan: number, ek: number) =>
-		`scale(${(k.s + ek) * ekOlcek * carpma}) translate(${k.x * carpan}%, ${(k.y + nefes) * carpan}%) rotate(${k.r}deg)`;
+		`scale(${Math.max(1.02, (k.s + ek) * ekOlcek * carpma)}) translate(${k.x * carpan}%, ${(k.y + nefes) * carpan}%) rotate(${k.r}deg)`;
 
 	if (sahne.kind === 'video') {
 		// Gercek klip zaten hareketli: tek katman yeter (iki kez video cozmek render'i yavaslatir)
 		return (
 			<AbsoluteFill style={{overflow: 'hidden', backgroundColor: '#000'}}>
-				<AbsoluteFill style={{transform: donusum(0.5, -0.12), filter: `blur(${bulanik}px) contrast(1.1) saturate(0.8)`}}>
+				<AbsoluteFill style={{transform: donusum(0.5, 0), filter: `blur(${bulanik}px) contrast(1.1) saturate(0.8)`}}>
 					{medya({})}
 				</AbsoluteFill>
 			</AbsoluteFill>
