@@ -930,6 +930,11 @@ Return ONLY valid JSON (no markdown, no ```), EXACTLY this shape:
 """
 
 
+# Kotasi biten (429) model bu kosu boyunca tekrar denenmez: her fikir denemesinde ayni modele
+# 3 kez bekleyerek donmek kosuyu ~1.5 dk/deneme uzatiyordu (8 denemede 60 dk sinira dayaniyordu).
+_KOTASI_BITEN = set()
+
+
 def _gemini_cagir(prompt):
     """Gecici hatalarda tekrar dener + yedek modele gecer. Ham JSON sozlugu doner."""
     import time
@@ -951,7 +956,11 @@ def _gemini_cagir(prompt):
             modeller.append(md)
 
     son_hata = None
+    if all(m in _KOTASI_BITEN for m in modeller):
+        _KOTASI_BITEN.clear()   # hepsi bittiyse bir tur daha sans ver
     for model in modeller:
+        if model in _KOTASI_BITEN:
+            continue
         for deneme in range(1, 5):
             try:
                 resp = client.models.generate_content(model=model, contents=prompt)
@@ -972,6 +981,8 @@ def _gemini_cagir(prompt):
                     print(f"      Gemini gecici hata ({model}, deneme {deneme}): {bekle}s bekle...")
                     time.sleep(bekle)
                     continue
+                if "429" in mesaj or "resource_exhausted" in mesaj:
+                    _KOTASI_BITEN.add(model)
                 print(f"      Model '{model}' olmadi ({str(e)[:70]}), sonraki modele...")
                 break
     raise RuntimeError(f"Gemini hicbir modelle uretemedi. Son hata: {son_hata}")
