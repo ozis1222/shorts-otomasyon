@@ -46,6 +46,11 @@ const Sahne: React.FC<{sahne: StickSahne; p: StickmanProps; sira: number; sureKa
 	const objeVar = sahne.prop && sahne.prop !== 'none';
 	const yer = yerlesim(karakterler.length, !!objeVar);
 	const agiz = agizAcikligi(p.words, globalT);
+	// Tabela; dosya karti veya SUBSCRIBE / WATCH NEXT ekrandayken gizlenir (ust uste binmesin)
+	const ustBos =
+		!(p.caseCard && globalT >= p.caseCard.start && globalT <= p.caseCard.start + KART_SN) &&
+		!(p.subscribeAt > 0 && globalT >= p.subscribeAt - 0.1 && globalT <= p.subscribeAt + CTA_SN) &&
+		!(p.watchNextAt > 0 && globalT >= p.watchNextAt - 0.1);
 
 	// Kamera: sahne boyunca yavas yaklasma; tek/cift sahnelerde yon degisir
 	const zoom = interpolate(frame, [0, sureKare], [1, 1.07]);
@@ -96,7 +101,7 @@ const Sahne: React.FC<{sahne: StickSahne; p: StickmanProps; sira: number; sureKa
 					);
 				})}
 			</svg>
-			{sahne.label ? (
+			{sahne.label && ustBos ? (
 				<div style={{position: 'absolute', top: 470, left: 0, right: 0, display: 'flex', justifyContent: 'center'}}>
 					<div
 						style={{
@@ -106,7 +111,7 @@ const Sahne: React.FC<{sahne: StickSahne; p: StickmanProps; sira: number; sureKa
 							borderRadius: 18,
 							padding: '6px 34px',
 							fontFamily: 'Anton, Impact, sans-serif',
-							fontSize: 86,
+							fontSize: sahne.label.length > 12 ? 64 : 86,
 							color: KONTUR,
 							boxShadow: '8px 8px 0 rgba(0,0,0,0.25)',
 						}}
