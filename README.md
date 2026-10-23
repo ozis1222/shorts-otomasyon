@@ -11,25 +11,26 @@ Elle ya da cron-job.org ile `workflow_dispatch` tetiklenerek ek video da uretile
 
 ---
 
-## Animasyon motoru (Remotion) - varsayilan
+## Animasyon motoru (Remotion) - varsayilan: konusan cop adam (stickman)
 
-Videolar artik stok klip montaji degil, **animasyon tarzinda** uretilir (`remotion/` klasoru):
+Videolar **kalin siyah konturlu, buyuk yuvarlak kafali, duz renkli 2D cop adam** tarzindadir
+(`remotion/src/stickman/`). Karakterler ve dekor **kodla (SVG) cizilir**, AI gorseli kullanilmaz:
+her videoda birebir ayni cizim dili, hizli ve dis servise bagimsiz render (~2 dk).
 
-1. Gemini senaryoyla birlikte bir **storyboard** yazar (`art_prompts`: anlatim sirasinda 9-11 kare,
-   ayni donem/mekan/karakter surekliligiyle), bir **dosya karti** (`case_card`: gercek isim, yil, yer)
-   ve ekranda kirmizi parlayacak **anahtar kelimeler** (`keywords`).
-2. Her kare Pollinations ile **tek bir cizim stilinde** (karanlik 2D animasyon / grafik roman,
-   teal-amber palet) cizilir -> her video ayni animasyon dizisinin bolumu gibi gorunur.
-3. Remotion bu kareleri canlandirir:
-   - kamera hareketleri (push-in, pan, tilt, dutch) + **2.5D parallax** derinlik
-   - sis, suzulen toz, isik huzmesi, ampul titremesi, film grain, vinyet
-   - sahne gecisleri: zoom dalisi, glitch, flas, iris
-   - **karaoke altyazi** (konusulan kelime sari, anahtar kelimeler kirmizi kutuda)
-   - ustte carpan **manset** (thumbnail yazisi), daktiloyla yazilan **CASE FILE** karti +
-     CLASSIFIED muhru, SUBSCRIBE / WATCH NEXT, ilerleme cubugu, logo
-   - FFmpeg ile sentezlenen ses tasarimi: acilis "boom"u, gecis "whoosh"lari, muhur vurusu,
-     derin ambient ugultu; anlatim -14 LUFS'a normalize edilir
-4. Kesmeler altyazi gruplarinin basina oturtulur (cumle ortasinda kesme olmaz), ilk kesme ~1.8 sn'de.
+1. Gemini senaryoyla birlikte bir **kadro** (`cast`: konu kisisinin sac, renk, gozluk, biyik...) ve
+   7-10 sahnelik **storyboard** (`scenes`: arka plan, obje, kim var, yuz ifadesi, poz, tabela) yazar.
+2. Remotion bu plani canlandirir:
+   - sabit **anlatici** karakter (kel, yuvarlak kafa, beyaz tisort) + hikayenin kisileri
+   - **agiz anlatimla senkron konusur**, gozler kirpar, nefes alir; sok olunca ziplar, korkunca titrer
+   - pozlar: isaret etme, eller havada, eller basta, omuz silkme, yurume
+   - 12 arka plan (gece, deniz, oda, orman, ofis, lab, kar...) ve 22 obje (fener, saat, kapi,
+     telefon, ucak, gemi, mektup, kafatasi...)
+   - karaoke altyazi, ustte manset, daktilolu **CASE FILE** karti, SUBSCRIBE / WATCH NEXT,
+     sahne gecislerinde "whoosh" + "pop" sesi
+3. Thumbnail, en carpici sahnenin (sok/korku) yazisiz karesinden uretilir.
+
+Eski stile donmek icin: `RENDER_STIL=illustrasyon` (AI ile cizilen karanlik illustrasyon) ya da
+`RENDER_MOTORU=moviepy` (stok klip montaji).
 
 Yedekler: AI gorseli yeterince cikmazsa stok klip/fotolara gecilir; Remotion herhangi bir sebeple
 hata verirse video eski MoviePy motoruyla uretilir. Yani hat asla kirilmaz.
