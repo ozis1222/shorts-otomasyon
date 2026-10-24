@@ -918,6 +918,8 @@ heads, flat colors - like popular stickman explainer channels; it is drawn in co
     picture using the SAME fixed look phrase every time (e.g. "a bearded sailor in a navy coat and captain hat"),
     what they are doing, their facial expression, the exact place and era, the key object, and the camera angle
     (close-up / wide shot / over-the-shoulder). Concrete and visual; never names of real people; no text in the image.
+    At least 6 of the scenes must SHOW the story's person(s) acting and reacting (not only objects); use object
+    close-ups only for the 1-3 beats where the object itself is the shocking detail.
   The FIRST character of a scene is the one whose mouth talks. Scene 1 = the hook: "narrator", shocked,
   pointing at the key prop. Reenact the story with "subject"; return to "narrator" for the twist/ending.
   Pick the prop that IS the beat (the stopped clock, the empty car, the letter). Vary backgrounds.
@@ -2573,7 +2575,7 @@ def stickman_olustur(words, data, thumb_yazi, out_path, thumb_path=None):
 #      stickman (kodla cizim) yedegine dusulur, video yine uretilir.
 # =========================================================
 _CF_STIL = ("2D cartoon illustration, bold thick black outlines, flat bright colors with simple soft shading, "
-            "simple cute round-headed cartoon characters with dot eyes, webcomic explainer animation style, "
+            "simple round-headed cartoon people with dot eyes, objects never have faces, webcomic explainer animation style, "
             "clean simple background, vertical 9:16 composition, no text, no letters, no watermark")
 
 
