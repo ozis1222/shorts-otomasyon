@@ -903,7 +903,10 @@ heads, flat colors - like popular stickman explainer channels; it is drawn in co
     "characters": 1-2 of {{"role": "narrator"|"subject"|"other",
                            "expression": neutral|scared|shocked|sad|thinking|angry|happy,
                            "pose": idle|point|hands_up|hands_on_head|shrug|walk}},
-    "label": optional 1-3 word sign shown on screen (a year, a place, a number) or ""}}
+    "label": optional 1-3 word sign shown on screen (a year, a place, a number) or "",
+    "place": the EXACT place and era of this beat in 6-15 words (e.g. "deck of a 19th-century wooden brigantine in Atlantic fog"),
+    "key_object": the ONE concrete object the narration mentions in this beat (e.g. "wedding ring", "VCR with red light") or ""}}
+  "place" and "key_object" are drawn specifically for this story, so they must follow the narration beat by beat.
   The FIRST character of a scene is the one whose mouth talks. Scene 1 = the hook: "narrator", shocked,
   pointing at the key prop. Reenact the story with "subject"; return to "narrator" for the twist/ending.
   Pick the prop that IS the beat (the stopped clock, the empty car, the letter). Vary backgrounds.
@@ -2339,6 +2342,128 @@ def _stickman_sahneleri(data, dur, gruplar):
     return sahneler
 
 
+# --- Hikayeye ozel sahne cizimi: Gemini her sahne icin SVG yazar (kalin kontur, duz renk) ---
+_SVG_YASAK_ETIKET = {"script", "foreignobject", "image", "iframe", "object", "embed", "audio", "video", "style"}
+
+
+def _svg_temizle(ham, genislik, yukseklik):
+    """LLM'in yazdigi SVG'yi dogrular ve guvenli hale getirir. Gecersizse None."""
+    import xml.etree.ElementTree as ET
+    if not isinstance(ham, str) or "<svg" not in ham:
+        return None
+    ham = ham[ham.index("<svg"): ham.rindex("</svg>") + 6] if "</svg>" in ham else None
+    if not ham or len(ham) > 120_000:
+        return None
+    try:
+        kok = ET.fromstring(ham)
+    except ET.ParseError:
+        return None
+
+    def ad(e):
+        return e.tag.split("}")[-1].lower()
+
+    if ad(kok) != "svg":
+        return None
+    sayac = 0
+    for ebeveyn in list(kok.iter()):
+        for cocuk in list(ebeveyn):
+            if ad(cocuk) in _SVG_YASAK_ETIKET:
+                ebeveyn.remove(cocuk)
+    for e in kok.iter():
+        sayac += 1
+        for anahtar in list(e.attrib):
+            kucuk = anahtar.split("}")[-1].lower()
+            deger = e.attrib[anahtar]
+            if kucuk.startswith("on") or (kucuk == "href" and not deger.startswith("#")) or "url(http" in deger:
+                del e.attrib[anahtar]
+    if sayac < 6:          # neredeyse bos cizim: kullanma
+        return None
+    kok.set("viewBox", kok.get("viewBox") or f"0 0 {genislik} {yukseklik}")
+    kok.set("width", str(genislik))
+    kok.set("height", str(yukseklik))
+    ET.register_namespace("", "http://www.w3.org/2000/svg")
+    metin = ET.tostring(kok, encoding="unicode")
+    if "xmlns=" not in metin[:200]:
+        metin = metin.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"', 1)
+    return metin
+
+
+def sahne_cizimleri(data, sahneler, words, hedef_klasor):
+    """
+    Her sahne icin hikayeye OZEL arka plan + anahtar obje SVG'si ister (tek Gemini cagrisi).
+    Basarili olanlar sahneye bgSvg/propSvg olarak eklenir; olmayanlar kodlu dekorla kalir.
+    """
+    if MANUAL_MODE or not GEMINI_API_KEY:
+        return 0
+    ham_sahneler = data.get("scenes") if isinstance(data, dict) else None
+    ham_sahneler = [s for s in (ham_sahneler or []) if isinstance(s, dict)]
+    satirlar = []
+    for i, s in enumerate(sahneler):
+        anlatim = " ".join(w["word"] for w in words if s["start"] - 0.05 <= w["start"] < s["end"])
+        h = ham_sahneler[i] if i < len(ham_sahneler) else {}
+        satirlar.append(json.dumps({
+            "i": i, "narration": anlatim,
+            "place": str(h.get("place") or s["background"]),
+            "key_object": str(h.get("key_object") or (s["prop"] if s["prop"] != "none" else "")),
+        }, ensure_ascii=False))
+    cizimler = {}
+    # 4'erli gruplar: tek dev yanit kesilip gecersiz JSON olmasin
+    for bas in range(0, len(satirlar), 4):
+        grup = satirlar[bas:bas + 4]
+        cevap = _sahne_cizim_iste(data, grup)
+        for c in (cevap.get("scenes") or []) if isinstance(cevap, dict) else []:
+            try:
+                cizimler[int(c.get("i"))] = c
+            except (TypeError, ValueError):
+                continue
+    adet = 0
+    for i, s in enumerate(sahneler):
+        c = cizimler.get(i) or {}
+        bg = _svg_temizle(c.get("bg"), 1080, 1920)
+        pr = _svg_temizle(c.get("prop"), 600, 600)
+        if bg:
+            with open(os.path.join(hedef_klasor, f"bg_{i:02d}.svg"), "w", encoding="utf-8") as f:
+                f.write(bg)
+            s["bgSvg"] = f"run/bg_{i:02d}.svg"
+            adet += 1
+        if pr:
+            with open(os.path.join(hedef_klasor, f"obje_{i:02d}.svg"), "w", encoding="utf-8") as f:
+                f.write(pr)
+            s["propSvg"] = f"run/obje_{i:02d}.svg"
+    print(f"      Hikayeye ozel cizim: {adet}/{len(sahneler)} sahne arka plani, "
+          f"{sum(1 for s in sahneler if s.get('propSvg'))} anahtar obje")
+    return adet
+
+
+def _sahne_cizim_iste(data, satirlar):
+    prompt = f"""You are the background artist of a 2D cartoon YouTube Shorts channel (talking stickman style).
+Story: {data.get('topic', '')}
+
+Draw each scene below as hand-written SVG code. STRICT STYLE (every scene must look like the same cartoon):
+- Flat fill colors, slightly muted palette; simple geometric shapes; at most simple linearGradient for skies.
+- Thick black outlines on every shape: stroke="#141414" stroke-width="8" (6 for small details), stroke-linejoin="round", stroke-linecap="round".
+- NO people, NO characters, NO faces (the characters are added on top later). NO text or letters. NO <image>, <script>, <style>, <foreignObject>, external links.
+- Keep each SVG compact (under 60 shapes).
+
+For EACH scene return two SVGs:
+1) "bg": the full environment, viewBox="0 0 1080 1920". The ground/floor line MUST be exactly at y=1560 (characters stand on it).
+   Characters will stand between x=150 and x=930, from y=650 to y=1560: keep that zone simple (wall / sky / sea),
+   put the story-specific details (furniture, ship parts, windows, buildings, trees, era details) at the edges, the top and on the floor.
+   It must clearly show THIS scene's exact place and era from the narration (e.g. a 19th-century ship deck in fog, a 1990s airport parking lot at night).
+2) "prop": the ONE key object of this beat that the narration talks about (e.g. a wedding ring, a VCR, a ship's logbook), viewBox="0 0 600 600",
+   transparent background, the object fills ~80% of the box and sits on the bottom edge. If there is no clear object return "".
+
+Scenes:
+{chr(10).join(satirlar)}
+
+Return ONLY JSON: {{"scenes": [{{"i": 0, "bg": "<svg ...>...</svg>", "prop": "<svg ...>...</svg>"}}]}}"""
+    try:
+        return _gemini_cagir(prompt)
+    except Exception as e:
+        print("      (sahne cizimi alinamadi, kodlu dekor kullanilacak:", str(e)[:120], ")")
+        return {}
+
+
 def stickman_olustur(words, data, thumb_yazi, out_path, thumb_path=None):
     """Konusan cop adam videosu uretir; thumb_path verilirse temiz bir kareyi PNG olarak da cizer."""
     import shutil
@@ -2375,6 +2500,7 @@ def stickman_olustur(words, data, thumb_yazi, out_path, thumb_path=None):
         for k in s["characters"]:
             if k["role"] not in cast:
                 k["role"] = "subject"
+    sahne_cizimleri(data, sahneler, words, REMOTION_RUN)
 
     logo = None
     if os.path.exists(LOGO_PATH):
@@ -2383,6 +2509,7 @@ def stickman_olustur(words, data, thumb_yazi, out_path, thumb_path=None):
     _, sfx = _ses_efektleri_uret(ff, dur, ambient=False)
     anahtar = [str(k) for k in (data.get("keywords") or [])][:6] if isinstance(data, dict) else []
 
+    kart = _dosya_karti(data, words)
     props = {
         "duration": round(dur, 3),
         "audio": "run/ses.wav",
@@ -2391,11 +2518,12 @@ def stickman_olustur(words, data, thumb_yazi, out_path, thumb_path=None):
         "words": [yuvarla(w) for w in words],
         "cast": cast,
         "scenes": sahneler,
-        "caseCard": _dosya_karti(data, words),
+        "caseCard": kart,
         "headline": (thumb_yazi or "")[:40],
         "keywords": anahtar,
         "logo": logo,
-        "subscribeAt": round(dur * 0.45, 2),
+        # SUBSCRIBE dosya kartiyla ayni anda cikmasin
+        "subscribeAt": round(max(dur * 0.45, (kart["start"] + 3.9) if kart else 0), 2),
         "watchNextAt": round(max(dur - 2.6, dur * 0.75), 2) if dur > 12 else 0,
     }
     props_yol = os.path.join(REMOTION_RUN, "props.json")
