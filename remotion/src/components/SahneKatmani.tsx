@@ -37,7 +37,7 @@ const ProsedurelArkaPlan: React.FC<{tohum: number}> = ({tohum}) => {
 	);
 };
 
-export const SahneKatmani: React.FC<{sahne: Sahne; sureKare: number; sira: number}> = ({sahne, sureKare, sira}) => {
+export const SahneKatmani: React.FC<{sahne: Sahne; sureKare: number; sira: number; canli?: boolean}> = ({sahne, sureKare, sira, canli}) => {
 	const frame = useCurrentFrame();
 	const p = Easing.inOut(Easing.cubic)(Math.min(1, Math.max(0, frame / Math.max(1, sureKare))));
 	const k = kameraDurumu(sahne.camera, p);
@@ -93,7 +93,7 @@ export const SahneKatmani: React.FC<{sahne: Sahne; sureKare: number; sira: numbe
 			<AbsoluteFill
 				style={{
 					transform: donusum(1, 0),
-					filter: bulanik > 0.5 ? `blur(${bulanik}px) contrast(1.12) saturate(0.82) brightness(0.92)` : 'contrast(1.12) saturate(0.82) brightness(0.92)',
+					filter: (bulanik > 0.5 ? `blur(${bulanik}px) ` : '') + (canli ? 'contrast(1.03) saturate(1.06)' : 'contrast(1.12) saturate(0.82) brightness(0.92)'),
 					WebkitMaskImage: 'radial-gradient(ellipse 78% 70% at 50% 46%, #000 62%, transparent 100%)',
 					maskImage: 'radial-gradient(ellipse 78% 70% at 50% 46%, #000 62%, transparent 100%)',
 				}}

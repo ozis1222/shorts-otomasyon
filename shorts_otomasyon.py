@@ -127,6 +127,10 @@ REMOTION_DIR  = os.path.join(BASE_DIR, "remotion")
 REMOTION_RUN  = os.path.join(REMOTION_DIR, "public", "run")   # her kosuda yeniden doldurulur
 # Animasyon stili: 'stickman' (varsayilan, kodla cizilen konusan cop adam) | 'illustrasyon' (AI cizimleri)
 RENDER_STIL   = (os.environ.get("RENDER_STIL") or "stickman").strip().lower()
+# Cloudflare Workers AI (ucretsiz FLUX): iki secret da varsa sahneler hikayeye ozel cizilir
+CF_HESAP = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
+CF_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
+CF_MODEL = os.environ.get("CF_GORSEL_MODEL") or "@cf/black-forest-labs/flux-1-schnell"
 ANIM_MIN_GORSEL = 4      # bundan az AI gorseli cikarsa stok medyaya (klip/foto) gecilir
 ANIM_ISTEK_ARASI_SN = 6  # Pollinations hiz siniri: basarili kareler arasinda kisa bekleme
 ANIM_GORSEL_BUTCE_SN = 14 * 60   # tum karelere ayrilan en uzun sure (60 dk is limiti icin)
@@ -907,6 +911,10 @@ heads, flat colors - like popular stickman explainer channels; it is drawn in co
     "place": the EXACT place and era of this beat in 6-15 words (e.g. "deck of a 19th-century wooden brigantine in Atlantic fog"),
     "key_object": the ONE concrete object the narration mentions in this beat (e.g. "wedding ring", "VCR with red light") or ""}}
   "place" and "key_object" are drawn specifically for this story, so they must follow the narration beat by beat.
+  "image_prompt": 25-45 words, English: the FULL illustration of this beat for an image AI. Say who is in the
+    picture using the SAME fixed look phrase every time (e.g. "a bearded sailor in a navy coat and captain hat"),
+    what they are doing, their facial expression, the exact place and era, the key object, and the camera angle
+    (close-up / wide shot / over-the-shoulder). Concrete and visual; never names of real people; no text in the image.
   The FIRST character of a scene is the one whose mouth talks. Scene 1 = the hook: "narrator", shocked,
   pointing at the key prop. Reenact the story with "subject"; return to "narrator" for the twist/ending.
   Pick the prop that IS the beat (the stopped clock, the empty car, the letter). Vary backgrounds.
@@ -2169,7 +2177,7 @@ def _bulanik_kopya(yol):
         return None
 
 
-def remotion_olustur(words, medya, data, thumb_yazi, out_path):
+def remotion_olustur(words, medya, data, thumb_yazi, out_path, cizgi=False):
     import shutil
     import subprocess
 
@@ -2231,6 +2239,7 @@ def remotion_olustur(words, medya, data, thumb_yazi, out_path):
         "logo": logo,
         "subscribeAt": round(dur * 0.45, 2),
         "watchNextAt": round(max(dur - 2.6, dur * 0.75), 2) if dur > 12 else 0,
+        "cizgi": bool(cizgi),
     }
     props_yol = os.path.join(REMOTION_RUN, "props.json")
     with open(props_yol, "w", encoding="utf-8") as f:
@@ -2393,7 +2402,8 @@ def sahne_cizimleri(data, sahneler, words, hedef_klasor):
     Her sahne icin hikayeye OZEL arka plan + anahtar obje SVG'si ister (tek Gemini cagrisi).
     Basarili olanlar sahneye bgSvg/propSvg olarak eklenir; olmayanlar kodlu dekorla kalir.
     """
-    if MANUAL_MODE or not GEMINI_API_KEY:
+    # Varsayilan KAPALI: hikaye gorselleri artik Cloudflare FLUX ile ciziliyor (SVG_SAHNE=1 ile acilir)
+    if MANUAL_MODE or not GEMINI_API_KEY or os.environ.get("SVG_SAHNE", "0") != "1":
         return 0
     ham_sahneler = data.get("scenes") if isinstance(data, dict) else None
     ham_sahneler = [s for s in (ham_sahneler or []) if isinstance(s, dict)]
@@ -2552,6 +2562,108 @@ def stickman_olustur(words, data, thumb_yazi, out_path, thumb_path=None):
             return None
         return thumb_path
     return None
+
+
+# =========================================================
+#  8d) CLOUDFLARE WORKERS AI (FLUX) - hikayeye ozel cizgi film sahneleri
+#      Ucretsiz: gunluk 10.000 neuron (~100+ dikey gorsel). Anahtar yoksa / hata verirse
+#      stickman (kodla cizim) yedegine dusulur, video yine uretilir.
+# =========================================================
+_CF_STIL = ("2D cartoon illustration, bold thick black outlines, flat bright colors with simple soft shading, "
+            "simple cute round-headed cartoon characters with dot eyes, webcomic explainer animation style, "
+            "clean simple background, vertical 9:16 composition, no text, no letters, no watermark")
+
+
+def cf_hazir():
+    return bool(CF_HESAP and CF_TOKEN)
+
+
+def _dikey_kirp(path):
+    """Gorseli ortadan 9:16 kirpar ve 1080x1920'ye getirir (FLUX kare cikti verebilir)."""
+    from PIL import Image, ImageFilter
+    with Image.open(path) as im:
+        im = im.convert("RGB")
+        w, h = im.size
+        hedef = 9 / 16
+        if w / h > hedef:
+            yeni_w = int(h * hedef)
+            x0 = (w - yeni_w) // 2
+            im = im.crop((x0, 0, x0 + yeni_w, h))
+        elif w / h < hedef:
+            yeni_h = int(w / hedef)
+            y0 = (h - yeni_h) // 2
+            im = im.crop((0, y0, w, y0 + yeni_h))
+        boyut = im.size
+        im = im.resize((1080, 1920), Image.LANCZOS)
+        if boyut[0] < 1000:   # buyutulduyse hafif netlestir
+            im = im.filter(ImageFilter.UnsharpMask(radius=1.6, percent=70, threshold=2))
+        im.save(path, quality=93)
+    return boyut
+
+
+def cf_gorsel(prompt, hedef, tohum):
+    """Tek gorsel uretir. Basariliysa True. Gecici hatalarda bekleyip tekrar dener."""
+    import base64
+    import time
+    import requests
+    url = f"https://api.cloudflare.com/client/v4/accounts/{CF_HESAP}/ai/run/{CF_MODEL}"
+    bas = {"Authorization": f"Bearer {CF_TOKEN}"}
+    metin = f"{prompt}, {_CF_STIL}"[:2000]
+    govdeler = [{"prompt": metin, "steps": 8, "seed": tohum, "width": 768, "height": 1344},
+                {"prompt": metin, "steps": 8, "seed": tohum}]   # boyut kabul edilmezse sade istek
+    for deneme in range(4):
+        govde = govdeler[min(deneme, 1)] if deneme < 2 else govdeler[1]
+        try:
+            if "flux-2" in CF_MODEL:   # flux-2 modelleri multipart bekler
+                alanlar = {k: (None, str(v)) for k, v in govde.items()}
+                r = requests.post(url, headers=bas, files=alanlar, timeout=120)
+            else:
+                r = requests.post(url, headers=bas, json=govde, timeout=120)
+            if r.status_code == 200:
+                veri = r.json()
+                b64 = (veri.get("result") or {}).get("image")
+                if b64:
+                    with open(hedef, "wb") as f:
+                        f.write(base64.b64decode(b64))
+                    boyut = _dikey_kirp(hedef)
+                    print(f"    (FLUX gorsel {boyut[0]}x{boyut[1]} -> 1080x1920)")
+                    return True
+                print("    (FLUX yaniti gorsel icermiyor:", str(veri)[:160], ")")
+            else:
+                print(f"    (FLUX HTTP {r.status_code}: {r.text[:160]})")
+                if r.status_code in (401, 403):
+                    return False          # anahtar/izin sorunu: tekrar denemenin anlami yok
+                if r.status_code == 429:
+                    time.sleep(10 * (deneme + 1))
+        except Exception as e:
+            print("    (FLUX istegi basarisiz:", str(e)[:120], ")")
+            time.sleep(3)
+    return False
+
+
+def flux_sahneleri(data, sorgular):
+    """Gemini'nin sahne tariflerinden (image_prompt) gorselleri uretir -> [(yol, 'foto'), ...]"""
+    os.makedirs(MEDYA_KLASORU, exist_ok=True)
+    for eski in os.listdir(MEDYA_KLASORU):
+        try:
+            os.remove(os.path.join(MEDYA_KLASORU, eski))
+        except OSError:
+            pass
+    sahneler = [s for s in (data.get("scenes") or []) if isinstance(s, dict)] if isinstance(data, dict) else []
+    tarifler = [str(s.get("image_prompt") or "").strip() for s in sahneler]
+    tarifler = [t for t in tarifler if t] or [str(q) for q in (data.get("art_prompts") or sorgular or [])]
+    tohum = random.randint(1, 10_000_000)
+    medya = []
+    for i, tarif in enumerate(tarifler[:10]):
+        hedef = os.path.join(MEDYA_KLASORU, f"flux_{i:02d}.jpg")
+        print(f"  Sahne [{i+1}/{min(len(tarifler), 10)}]: {tarif[:100]}")
+        # ayni tohum ailesi: karakterlerin cizimi sahneler arasi daha tutarli kalir
+        if cf_gorsel(tarif, hedef, tohum + i):
+            medya.append((hedef, "foto"))
+        else:
+            print("    -> cizilemedi")
+    print(f"  Toplam {len(medya)} FLUX sahnesi hazir.")
+    return medya
 
 
 # =========================================================
@@ -2832,7 +2944,22 @@ def main():
     art = [str(a).strip() for a in (data.get("art_prompts") or []) if str(a).strip()]
     hazir = False
     medya = []
-    if stick:
+    if stick and cf_hazir():
+        # Hikayeye ozel cizgi film sahneleri (Cloudflare FLUX, ucretsiz kota)
+        print("[4/6] Hikaye sahneleri ciziliyor (Cloudflare FLUX)...")
+        medya = flux_sahneleri(data, sorgular)
+        if len(medya) >= ANIM_MIN_GORSEL:
+            print("[5/6] Video kurgulaniyor (Remotion)...")
+            try:
+                remotion_olustur(words, medya, data, thumb_yazi, OUTPUT_FILE, cizgi=True)
+                hazir = True
+            except Exception as e:
+                print("      (FLUX videosu render edilemedi, stickman yedegine geciliyor:", str(e)[:200], ")")
+        else:
+            print("      (yeterli FLUX sahnesi yok, stickman yedegine geciliyor)")
+        if not hazir:
+            medya = []
+    if stick and not hazir:
         # Gorsel indirme yok: karakterler ve dekor Remotion'da cizilir
         print("[4/6] Stickman animasyonu render ediliyor (Remotion)... (birkac dakika surebilir)")
         try:
