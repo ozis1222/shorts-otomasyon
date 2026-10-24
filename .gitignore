@@ -17,3 +17,7 @@ medya_gecici/
 
 # Remotion gecici ciktisi
 *.remotion.mp4
+
+# motion-engine render motoru (workflow'da indirilir) ve her kosuda uretilen dosyalar
+motion-engine/
+motion/run/

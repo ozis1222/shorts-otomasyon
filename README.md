@@ -11,7 +11,41 @@ Elle ya da cron-job.org ile `workflow_dispatch` tetiklenerek ek video da uretile
 
 ---
 
-## Animasyon motoru (Remotion) - varsayilan: konusan cop adam (stickman)
+## Render motoru: motion-engine (varsayilan)
+
+Videolar [motion-engine](https://github.com/oguzhankayan/motion-engine) ile uretilir: Gemini'nin yazdigi ayni
+storyboard (`scenes`: arka plan, obje, karakter, ifade, etiket) **sinematik, kodla cizilen sahnelere** donusur.
+AI gorseli veya ucretli servis gerekmez; her video ayni gorsel dili korur.
+
+- **12 ortam:** sisli cam ormani, gece, deniz (dalga + ay yansimasi), gokyuzu (bulut katmanlari), kar, col,
+  magara, yagmurlu sokak, oda, ofis, laboratuvar, soyut karanlik.
+- **Objeler:** deniz feneri (donen isik), gemi, ucak (yanip sonen isiklar), ev, araba (farlar), kapi, pencere,
+  telefon, telsiz, kamera, mezar, agac...
+- **Yakin planlar:** `clock` dijital saat (etiketteki saat, or. `08:45`), `footprints` camurda ayak izleri,
+  `letter`/`map` masada belge ya da harita.
+- Konu kisisi kadrodaki renklerle (`cast.subject`) arkadan cizilir; korkunca titrer, `walk` pozunda yurur.
+- Kanal kimligi korunur: Anton fontlu sari **karaoke altyazi**, ustte manset, daktilolu **CASE FILE** karti,
+  SUBSCRIBE / WATCH NEXT, kose logosu; sahne kesmelerinde whoosh, acilista boom.
+- Ses: edge-tts anlatimi + sentezlenen orman/ugultu yatagi; anlatim konusurken yatak otomatik geri cekilir.
+
+Dosyalar: `motion/scene.js` (sahne motoru), `motion/render.mjs` (paralel kare render + ses karisimi + MP4),
+`motion/sfx.mjs` (ozgun ses efektleri). Actions, motion-engine'i sabit bir commit'ten `motion-engine/` klasorune indirir.
+
+**Yedekler:** motion-engine kurulamaz ya da hata verirse video otomatik olarak asagidaki Remotion stickman
+motoruyla, o da olmazsa MoviePy ile uretilir. Hat asla kirilmaz. Eski motoru secmek icin `RENDER_MOTORU=remotion`.
+
+Yerelde:
+
+```bash
+git clone https://github.com/oguzhankayan/motion-engine.git
+cd motion-engine && git checkout 1926c1126ced9afe1419946f2513c4b6c222b3d1 && npm ci && npx playwright-core install chromium && cd ..
+set UPLOAD_TO_YOUTUBE=0
+python shorts_otomasyon.py      # RENDER_MOTORU varsayilan olarak motion-engine
+```
+
+---
+
+## Yedek animasyon motoru (Remotion): konusan cop adam (stickman)
 
 Videolar **kalin siyah konturlu, buyuk yuvarlak kafali, duz renkli 2D cop adam** tarzindadir
 (`remotion/src/stickman/`). Karakterler ve dekor **kodla (SVG) cizilir**, AI gorseli kullanilmaz:

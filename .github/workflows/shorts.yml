@@ -17,10 +17,10 @@ on:
         type: string
         default: "1"
       motor:
-        description: "Render motoru: remotion = animasyon, moviepy = eski stok klip"
+        description: "Render motoru: motion-engine = sinematik sahneler, remotion = stickman, moviepy = eski stok klip"
         type: choice
-        default: "remotion"
-        options: [remotion, moviepy]
+        default: "motion-engine"
+        options: [motion-engine, remotion, moviepy]
 
 # Ayni anda iki kosu calisirsa hafiza dosyalari (gecmis.json) catisir -> sirayla calissin
 concurrency:
@@ -61,6 +61,21 @@ jobs:
           npm ci --no-audit --no-fund
           npx remotion browser ensure
 
+      # Sinematik render motoru: github.com/oguzhankayan/motion-engine (MIT), sabit commit
+      - name: motion-engine'i indir
+        uses: actions/checkout@v5
+        with:
+          repository: oguzhankayan/motion-engine
+          ref: 1926c1126ced9afe1419946f2513c4b6c222b3d1
+          path: motion-engine
+
+      - name: motion-engine bagimliliklari + Chromium
+        working-directory: motion-engine
+        continue-on-error: true      # kurulamazsa Python Remotion yedegine duser
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright-core install --with-deps chromium
+
       - name: Gizli dosyalari olustur
         env:
           CLIENT_SECRET_JSON: ${{ secrets.CLIENT_SECRET_JSON }}
@@ -80,7 +95,8 @@ jobs:
           # Elle tetiklemede secilebilir; cron (girdisiz) -> public + yukle (eski davranis)
           PRIVACY:            ${{ inputs.privacy || 'public' }}
           UPLOAD_TO_YOUTUBE:  ${{ inputs.upload || '1' }}
-          RENDER_MOTORU:      ${{ inputs.motor || 'remotion' }}
+          RENDER_MOTORU:      ${{ inputs.motor || 'motion-engine' }}
+          MOTION_ENGINE_DIR:  ${{ github.workspace }}/motion-engine
           # Loglar canli aksin: is zaman asimina ugrarsa nerede takildigi gorunsun
           PYTHONUNBUFFERED:   "1"
         run: python shorts_otomasyon.py
