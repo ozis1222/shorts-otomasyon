@@ -130,7 +130,10 @@ RENDER_STIL   = (os.environ.get("RENDER_STIL") or "stickman").strip().lower()
 # Cloudflare Workers AI (ucretsiz FLUX): iki secret da varsa sahneler hikayeye ozel cizilir
 CF_HESAP = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
 CF_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
-CF_MODEL = os.environ.get("CF_GORSEL_MODEL") or "@cf/black-forest-labs/flux-1-schnell"
+# FLUX.2 Klein 4B: dikey boyut destekler (multipart, genislik/yukseklik 256-1920). 864x1536 = tam 9:16,
+# 6 karo ~ 160 neuron -> gunluk ucretsiz kotayla ~60 gorsel. Hata olursa FLUX.1 schnell (kare) yedek.
+CF_MODEL = os.environ.get("CF_GORSEL_MODEL") or "@cf/black-forest-labs/flux-2-klein-4b"
+CF_YEDEK_MODEL = "@cf/black-forest-labs/flux-1-schnell"
 ANIM_MIN_GORSEL = 4      # bundan az AI gorseli cikarsa stok medyaya (klip/foto) gecilir
 ANIM_ISTEK_ARASI_SN = 6  # Pollinations hiz siniri: basarili kareler arasinda kisa bekleme
 ANIM_GORSEL_BUTCE_SN = 14 * 60   # tum karelere ayrilan en uzun sure (60 dk is limiti icin)
@@ -2601,43 +2604,46 @@ def _dikey_kirp(path):
     return boyut
 
 
+def _cf_istek(model, metin, tohum):
+    """Tek istek. Donus: (durum_kodu, base64_gorsel_veya_None, hata_metni)."""
+    import requests
+    url = f"https://api.cloudflare.com/client/v4/accounts/{CF_HESAP}/ai/run/{model}"
+    bas = {"Authorization": f"Bearer {CF_TOKEN}"}
+    if "flux-2" in model:   # multipart form alanlari; adim sayisi modelde sabit (4)
+        alanlar = {"prompt": (None, metin), "width": (None, "864"), "height": (None, "1536"),
+                   "seed": (None, str(tohum))}
+        r = requests.post(url, headers=bas, files=alanlar, timeout=120)
+    else:                   # flux-1-schnell yalnizca prompt + steps kabul eder (kare cikti)
+        r = requests.post(url, headers=bas, json={"prompt": metin, "steps": 8}, timeout=120)
+    if r.status_code != 200:
+        return r.status_code, None, r.text[:200]
+    sonuc = (r.json() or {}).get("result") or {}
+    return 200, sonuc.get("image"), "" if sonuc.get("image") else str(sonuc)[:160]
+
+
 def cf_gorsel(prompt, hedef, tohum):
-    """Tek gorsel uretir. Basariliysa True. Gecici hatalarda bekleyip tekrar dener."""
+    """Tek gorsel uretir. Basariliysa True. Gecici hatada bekler; ana model olmazsa yedek modele gecer."""
     import base64
     import time
-    import requests
-    url = f"https://api.cloudflare.com/client/v4/accounts/{CF_HESAP}/ai/run/{CF_MODEL}"
-    bas = {"Authorization": f"Bearer {CF_TOKEN}"}
     metin = f"{prompt}, {_CF_STIL}"[:2000]
-    govdeler = [{"prompt": metin, "steps": 8, "seed": tohum, "width": 768, "height": 1344},
-                {"prompt": metin, "steps": 8, "seed": tohum}]   # boyut kabul edilmezse sade istek
-    for deneme in range(4):
-        govde = govdeler[min(deneme, 1)] if deneme < 2 else govdeler[1]
-        try:
-            if "flux-2" in CF_MODEL:   # flux-2 modelleri multipart bekler
-                alanlar = {k: (None, str(v)) for k, v in govde.items()}
-                r = requests.post(url, headers=bas, files=alanlar, timeout=120)
-            else:
-                r = requests.post(url, headers=bas, json=govde, timeout=120)
-            if r.status_code == 200:
-                veri = r.json()
-                b64 = (veri.get("result") or {}).get("image")
-                if b64:
-                    with open(hedef, "wb") as f:
-                        f.write(base64.b64decode(b64))
-                    boyut = _dikey_kirp(hedef)
-                    print(f"    (FLUX gorsel {boyut[0]}x{boyut[1]} -> 1080x1920)")
-                    return True
-                print("    (FLUX yaniti gorsel icermiyor:", str(veri)[:160], ")")
-            else:
-                print(f"    (FLUX HTTP {r.status_code}: {r.text[:160]})")
-                if r.status_code in (401, 403):
-                    return False          # anahtar/izin sorunu: tekrar denemenin anlami yok
-                if r.status_code == 429:
-                    time.sleep(10 * (deneme + 1))
-        except Exception as e:
-            print("    (FLUX istegi basarisiz:", str(e)[:120], ")")
-            time.sleep(3)
+    for model in dict.fromkeys([CF_MODEL, CF_YEDEK_MODEL]):
+        for deneme in range(3):
+            try:
+                kod, b64, hata = _cf_istek(model, metin, tohum)
+            except Exception as e:
+                kod, b64, hata = 0, None, str(e)[:120]
+            if b64:
+                with open(hedef, "wb") as f:
+                    f.write(base64.b64decode(b64))
+                boyut = _dikey_kirp(hedef)
+                print(f"    (FLUX {model.split('/')[-1]} {boyut[0]}x{boyut[1]} -> 1080x1920)")
+                return True
+            print(f"    (FLUX {model.split('/')[-1]} HTTP {kod}: {hata})")
+            if kod in (401, 403):
+                return False      # anahtar/izin sorunu: tekrar denemenin anlami yok
+            if kod == 400:
+                break             # parametre hatasi: bu modelde tekrar deneme, yedek modele gec
+            time.sleep(8 * (deneme + 1) if kod == 429 else 3)
     return False
 
 
