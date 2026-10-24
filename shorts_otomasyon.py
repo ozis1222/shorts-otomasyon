@@ -120,9 +120,14 @@ KEN_BURNS_ZOOM = 0.20   # sahne sonunda %20 zoom
 KEN_BURNS_PAN  = 46     # piksel cinsinden kaydirma
 
 # --- RENDER MOTORU ---
-#  'remotion' (varsayilan): AI illustrasyonlarindan animasyon tarzi video (remotion/ klasoru)
-#  'moviepy'              : eski stok-klip montaji. Remotion hata verirse otomatik buna dusulur.
-RENDER_MOTORU = (os.environ.get("RENDER_MOTORU") or "remotion").strip().lower()
+#  'motion-engine' (varsayilan): sinematik, kodla cizilen sahneler (github.com/oguzhankayan/motion-engine)
+#                              hata verirse otomatik Remotion stickman'e, o da olmazsa MoviePy'a dusulur.
+#  'remotion'                 : Remotion stickman / AI illustrasyon animasyonu (remotion/ klasoru)
+#  'moviepy'                  : eski stok-klip montaji
+RENDER_MOTORU = (os.environ.get("RENDER_MOTORU") or "motion-engine").strip().lower()
+MOTION_DIR        = os.path.join(BASE_DIR, "motion")                     # sahne motoru + render koprusu
+MOTION_RUN        = os.path.join(MOTION_DIR, "run")                      # her kosuda yeniden doldurulur
+MOTION_ENGINE_DIR = os.environ.get("MOTION_ENGINE_DIR") or os.path.join(BASE_DIR, "motion-engine")
 REMOTION_DIR  = os.path.join(BASE_DIR, "remotion")
 REMOTION_RUN  = os.path.join(REMOTION_DIR, "public", "run")   # her kosuda yeniden doldurulur
 # Animasyon stili: 'stickman' (varsayilan, kodla cizilen konusan cop adam) | 'illustrasyon' (AI cizimleri)
@@ -2570,6 +2575,93 @@ def stickman_olustur(words, data, thumb_yazi, out_path, thumb_path=None):
 
 
 # =========================================================
+#  8c-2) MOTION-ENGINE: sinematik sahneler (varsayilan motor)
+#      Ayni storyboard (arka plan / obje / karakter) motion-engine runtime'i ile kodla cizilir:
+#      sisli orman, deniz, gokyuzu, oda, lab, kar, col, magara, sokak; saat / ayak izi / belge yakin planlari.
+#      Anlatim edge-tts'den, altyazi kelime zamanlarindan gelir. Kareler paralel alinir, FFmpeg ile birlestirilir.
+# =========================================================
+def motion_engine_hazir():
+    import shutil
+    return (shutil.which("node") is not None
+            and os.path.exists(os.path.join(MOTION_DIR, "render.mjs"))
+            and os.path.exists(os.path.join(MOTION_ENGINE_DIR, "engine", "runtime.js"))
+            and os.path.isdir(os.path.join(MOTION_ENGINE_DIR, "node_modules", "playwright-core")))
+
+
+def motion_engine_olustur(words, data, thumb_yazi, out_path, thumb_path=None):
+    """motion-engine ile video uretir; thumb_path verilirse en carpici sahnenin yazisiz karesini de cizer."""
+    import shutil
+    import subprocess
+
+    ff = _ffmpeg_yolu()
+    shutil.rmtree(MOTION_RUN, ignore_errors=True)
+    os.makedirs(MOTION_RUN, exist_ok=True)
+    os.makedirs(REMOTION_RUN, exist_ok=True)   # _ses_efektleri_uret dosyalari buraya yazar
+
+    ses = os.path.join(MOTION_RUN, "ses.wav")
+    try:
+        _ffmpeg_ses(ff, ["-i", AUDIO_FILE, "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", "48000", "-ac", "2"], ses)
+    except Exception:
+        _ffmpeg_ses(ff, ["-i", AUDIO_FILE, "-ar", "48000", "-ac", "2"], ses)
+    dur = max(w["end"] for w in words) + 0.6
+
+    gruplar = kelime_gruplari(words, WORDS_PER_CHUNK)
+    yuvarla = lambda w: {"word": w["word"], "start": round(w["start"], 3), "end": round(w["end"], 3)}
+    captions = [{"start": round(g["start"], 3), "end": round(g["end"], 3),
+                 "words": [yuvarla(w) for w in g["words"]]} for g in gruplar]
+
+    kadro_ham = data.get("cast") if isinstance(data, dict) and isinstance(data.get("cast"), dict) else {}
+    yedek = random.choice(_YEDEK_KADRO)
+    cast = {"narrator": dict(_ANLATICI)}
+    for rol, gor in kadro_ham.items():
+        if str(rol).lower() != "narrator":
+            cast[str(rol).lower()] = _gorunum(gor, yedek)
+    cast.setdefault("subject", dict(yedek))
+    sahneler = _stickman_sahneleri(data, dur, gruplar)
+
+    sfx = {}
+    _, ham_sfx = _ses_efektleri_uret(ff, dur, ambient=False)
+    for ad, yol in (ham_sfx or {}).items():
+        kaynak = os.path.join(REMOTION_DIR, "public", yol) if yol else None
+        if kaynak and os.path.exists(kaynak):
+            shutil.copyfile(kaynak, os.path.join(MOTION_RUN, os.path.basename(kaynak)))
+            sfx[ad] = os.path.basename(kaynak)
+    logo = None
+    if os.path.exists(LOGO_PATH):
+        shutil.copyfile(LOGO_PATH, os.path.join(MOTION_RUN, "logo.png"))
+        logo = "logo.png"
+    anahtar = [str(k) for k in (data.get("keywords") or [])][:6] if isinstance(data, dict) else []
+    kart = _dosya_karti(data, words)
+    props = {
+        "duration": round(dur, 3), "audio": "ses.wav", "sfx": sfx, "captions": captions,
+        "words": [yuvarla(w) for w in words], "cast": cast, "scenes": sahneler, "caseCard": kart,
+        "headline": (thumb_yazi or "")[:40], "keywords": anahtar, "logo": logo,
+        "subscribeAt": round(max(dur * 0.45, (kart["start"] + 3.9) if kart else 0), 2),
+        "watchNextAt": round(max(dur - 2.6, dur * 0.75), 2) if dur > 12 else 0,
+    }
+    with open(os.path.join(MOTION_RUN, "props.json"), "w", encoding="utf-8") as f:
+        json.dump(props, f, ensure_ascii=False)
+
+    ortam = {**os.environ, "MOTION_ENGINE_DIR": MOTION_ENGINE_DIR, "FFMPEG": ff,
+             "VIDEO_BITRATE": VIDEO_BITRATE, "X264_PRESET": X264_PRESET}
+    print(f"  motion-engine render: {len(sahneler)} sahne, {dur:.1f} sn ...")
+    subprocess.run(["node", os.path.join(MOTION_DIR, "render.mjs"), MOTION_RUN, out_path],
+                   cwd=BASE_DIR, env=ortam, check=True, timeout=35 * 60)
+
+    if thumb_path:
+        sec = next((s for s in sahneler if any(k["expression"] in ("shocked", "scared") for k in s["characters"])),
+                   sahneler[0])
+        try:
+            subprocess.run(["node", os.path.join(MOTION_DIR, "render.mjs"), MOTION_RUN, out_path,
+                            "--still", f"{(sec['start'] + sec['end']) / 2:.2f}", thumb_path],
+                           cwd=BASE_DIR, env=ortam, check=True, timeout=5 * 60)
+            return thumb_path
+        except Exception as e:
+            print("      (thumbnail karesi cizilemedi, videodan kare kullanilacak:", str(e)[:120], ")")
+    return None
+
+
+# =========================================================
 #  8d) CLOUDFLARE WORKERS AI (FLUX) - hikayeye ozel cizgi film sahneleri
 #      Ucretsiz: gunluk 10.000 neuron (~100+ dikey gorsel). Anahtar yoksa / hata verirse
 #      stickman (kodla cizim) yedegine dusulur, video yine uretilir.
@@ -2947,12 +3039,26 @@ def main():
     if not words:
         raise RuntimeError("edge-tts kelime zamanlamasi dondurmedi. Senaryo bos olabilir.")
 
-    anim = RENDER_MOTORU == "remotion" and os.path.isdir(REMOTION_DIR)
+    anim = RENDER_MOTORU in ("remotion", "motion-engine") and os.path.isdir(REMOTION_DIR)
     stick = anim and RENDER_STIL == "stickman"
     art = [str(a).strip() for a in (data.get("art_prompts") or []) if str(a).strip()]
     hazir = False
     medya = []
-    if stick and cf_hazir():
+    if RENDER_MOTORU == "motion-engine":
+        if motion_engine_hazir():
+            print("[4/6] Sinematik animasyon render ediliyor (motion-engine)... (birkac dakika surebilir)")
+            try:
+                os.makedirs(MEDYA_KLASORU, exist_ok=True)
+                kare = motion_engine_olustur(words, data, thumb_yazi, OUTPUT_FILE,
+                                             thumb_path=os.path.join(MEDYA_KLASORU, "motion_kare.png"))
+                hazir = True
+                if kare:
+                    medya = [(kare, "foto")]
+            except Exception as e:
+                print("      (motion-engine basarisiz, Remotion yedegine geciliyor:", str(e)[:300], ")")
+        else:
+            print("      (motion-engine kurulu degil -> Remotion yedegi. MOTION_ENGINE_DIR:", MOTION_ENGINE_DIR, ")")
+    if not hazir and stick and cf_hazir():
         # Hikayeye ozel cizgi film sahneleri (Cloudflare FLUX, ucretsiz kota)
         print("[4/6] Hikaye sahneleri ciziliyor (Cloudflare FLUX)...")
         medya = flux_sahneleri(data, sorgular)
