@@ -67,6 +67,9 @@ export type StickSahne = {
 	characters: SahneKarakteri[];
 	// ekranda kucuk tabela/etiket olarak gorunen kisa yazi (orn. "1937"), opsiyonel
 	label?: string;
+	// Gemini'nin bu hikayeye ozel cizdigi SVG'ler (public/ altinda yol). Yoksa kodlu dekor kullanilir.
+	bgSvg?: string | null;
+	propSvg?: string | null;
 };
 
 export type StickmanProps = {

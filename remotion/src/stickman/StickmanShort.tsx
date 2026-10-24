@@ -1,5 +1,5 @@
 import React from 'react';
-import {AbsoluteFill, Audio, interpolate, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Audio, Img, interpolate, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import {loadFont} from '@remotion/fonts';
 import {Altyazi} from '../components/Altyazi';
 import {IlerlemeCubugu} from '../components/Atmosfer';
@@ -43,7 +43,7 @@ const Sahne: React.FC<{sahne: StickSahne; p: StickmanProps; sira: number; sureKa
 	const yerelT = frame / fps;
 	const globalT = sahne.start + yerelT;
 	const karakterler = sahne.characters.slice(0, 2);
-	const objeVar = sahne.prop && sahne.prop !== 'none';
+	const objeVar = !!sahne.propSvg || (sahne.prop && sahne.prop !== 'none');
 	const yer = yerlesim(karakterler.length, !!objeVar);
 	const agiz = agizAcikligi(p.words, globalT);
 	// Tabela; dosya karti veya SUBSCRIBE / WATCH NEXT ekrandayken gizlenir (ust uste binmesin)
@@ -60,11 +60,25 @@ const Sahne: React.FC<{sahne: StickSahne; p: StickmanProps; sira: number; sureKa
 
 	return (
 		<AbsoluteFill style={{transform: `scale(${zoom * interpolate(giris, [0, 1], [1.06, 1])}) translateX(${kayma}px)`, transformOrigin: '50% 75%'}}>
-			<Arkaplan tur={sahne.background} t={yerelT} />
+			{sahne.bgSvg ? (
+				// Hikayeye ozel cizilmis sahne (Gemini SVG): hafif parallax icin karakterlerden yavas kayar
+				<AbsoluteFill style={{transform: `translateX(${-kayma * 0.5}px)`}}>
+					<Img src={staticFile(sahne.bgSvg)} style={{width: 1080, height: 1920}} />
+				</AbsoluteFill>
+			) : (
+				<Arkaplan tur={sahne.background} t={yerelT} />
+			)}
 			<svg width={1080} height={1920} viewBox="0 0 1080 1920" style={{position: 'absolute', inset: 0, overflow: 'visible'}}>
 				{objeVar && yer.obje && (
 					<g transform={`translate(${yer.obje.x} ${ZEMIN_Y}) scale(${yer.obje.s * interpolate(giris, [0, 1], [0.6, 1])})`}>
-						<ObjeCiz tur={sahne.prop} t={yerelT} />
+						{sahne.propSvg ? (
+							// anahtar obje: hafif suzulme + sallanma, tabani zemine oturur
+							<g transform={`translate(0 ${Math.sin(yerelT * 2) * 8}) rotate(${Math.sin(yerelT * 1.3) * 2})`}>
+								<image href={staticFile(sahne.propSvg)} x={-300} y={-620} width={600} height={600} />
+							</g>
+						) : (
+							<ObjeCiz tur={sahne.prop} t={yerelT} />
+						)}
 					</g>
 				)}
 				{karakterler.map((k, i) => {
