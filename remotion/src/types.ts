@@ -33,4 +33,6 @@ export type ShortProps = {
 	logo: string | null;
 	subscribeAt: number;
 	watchNextAt: number;
+	// Cizgi film gorselleri: karanlik film gradesi, sis ve titreme kapali; renkler canli kalir
+	cizgi?: boolean;
 };

@@ -29,14 +29,14 @@ export const MysteryShort: React.FC<ShortProps> = (p) => {
 				return (
 					<Sequence key={`s${i}`} from={bas} durationInFrames={sure} layout="none">
 						<AbsoluteFill>
-							<SahneKatmani sahne={s} sureKare={sure} sira={i} />
+							<SahneKatmani sahne={s} sureKare={sure} sira={i} canli={!!p.cizgi} />
 							{i > 0 && <Gecis tur={s.transition} tohum={i} />}
 						</AbsoluteFill>
 					</Sequence>
 				);
 			})}
 
-			<Atmosfer />
+			{!p.cizgi && <Atmosfer />}
 
 			{/* Altyazi okunurlugu icin alt yarida yumusak karartma */}
 			<AbsoluteFill style={{background: 'linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.25) 100%)'}} />
@@ -63,7 +63,7 @@ export const MysteryShort: React.FC<ShortProps> = (p) => {
 			)}
 
 			<Logo src={p.logo} />
-			<FilmKatmani />
+			{!p.cizgi && <FilmKatmani />}
 			<IlerlemeCubugu />
 
 			{/* --- SES --- */}
