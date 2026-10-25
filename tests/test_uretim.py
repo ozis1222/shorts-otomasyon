@@ -96,3 +96,12 @@ def test_anlatici_flux_promptundan_cikar():
     import shorts_otomasyon as so
     t = so._ANLATICI_RE.sub("a frightened witness", "A stickman narrator pointing at a clock")
     assert "stickman" not in t.lower() and "narrator" not in t.lower()
+
+
+def test_tema_son_kullanilanlari_tekrar_etmez():
+    import shorts_otomasyon as so
+    havuz = so.TEMALAR["ozgun_korku"]
+    gecmis = [{"tema": t} for t in havuz[:8]]
+    for _ in range(30):
+        assert so.tema_sec(gecmis, "ozgun_korku") not in havuz[:8]
+    assert all(len(v) >= 12 for v in so.TEMALAR.values())

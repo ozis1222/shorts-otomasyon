@@ -526,6 +526,53 @@ def aile_sec(gecmis):
     return secim
 
 
+# Genis viral tema havuzu: her video bir DUNYA alir; son kullanilanlar tekrar secilmez.
+# Amac: hep "issiz kulube + yasli adam + tuhaf nesne" cikmasin; herkesin aninda anladigi,
+# gundelik ya da buyuleyici ortamlarda gecen, paylasilmaya uygun hikayeler.
+TEMALAR = {
+    "gercek_vaka": [
+        "a passenger plane or its crew", "a ship, ghost ship or lost submarine", "a mountain or polar expedition",
+        "a missing hiker in a national park", "an internet mystery or strange video posted online",
+        "a person who vanished from a hotel, elevator or locked room", "a deep-sea or ocean discovery",
+        "a space mission or astronaut incident", "a lighthouse, island or remote outpost", "a strange broadcast or radio signal",
+        "an ancient artifact or archaeological site", "a child who vanished in plain sight", "a famous heist or vanished treasure",
+        "a desert, highway or road-trip disappearance", "a military or Cold War incident", "a small town where something unexplained happened",
+    ],
+    "hayatta_kalma": [
+        "trapped in a stuck elevator in a skyscraper at night", "lost scuba diving inside an underwater cave",
+        "the last passenger on a night subway train that will not stop", "stranded on a frozen lake as the ice cracks",
+        "locked inside a supermarket after closing", "alone on a sinking cruise ship", "a broken-down car on a desert highway",
+        "a solo night shift in an empty hospital ward", "lost in a corn maze at night", "a capsized kayak far from shore",
+        "a ski lift stopped mid-air in a blizzard", "an astronaut drifting after a spacewalk tether snaps",
+        "a flooded basement during a storm", "a wrong turn into an abandoned theme park", "a submarine tour that loses power",
+        "a phone at 1 percent battery in an unfamiliar city", "a mountain gondola stuck over a canyon", "a wildfire closing every road out",
+    ],
+    "ozgun_korku": [
+        "a smart home assistant that starts giving orders", "a livestream where the chat sees something the streamer cannot",
+        "a babysitting job with one strange house rule", "a hotel room that is not on the floor plan", "a night shift at a gas station",
+        "a ride-share driver with the wrong destination", "a video call where the other person freezes but keeps talking",
+        "an apartment where the neighbor knocks back", "a delivery app order nobody placed", "a school after hours",
+        "a dashcam recording that shows a different road", "an abandoned shopping mall at night", "a voicemail from your own number",
+        "a cruise ship cabin with a hidden door", "a subway station that is not on the map", "a security guard watching cameras",
+        "a dating app match who knows too much", "a family photo with one extra person", "a submarine sonar contact that copies the crew",
+        "an online game with a player who should not exist", "a camping trip where the tent is unzipped from outside",
+    ],
+}
+
+
+def tema_sec(gecmis, aile, son_n=8):
+    """Aileye gore tema secer; son son_n videoda kullanilan temalar disarida kalir."""
+    havuz = list(TEMALAR.get(aile) or [])
+    son = {k.get("tema") for k in gecmis[-son_n:] if k.get("tema")}
+    adaylar = [t for t in havuz if t not in son] or havuz
+    return random.choice(adaylar) if adaylar else ""
+
+
+def _son_mekanlar(gecmis, n=12):
+    """Son videolarin konu basliklari (mekan/premis tekrarini onlemek icin prompt'a verilir)."""
+    return [k.get("topic") for k in gecmis[-n:] if k.get("topic")]
+
+
 def _son_farkli_turler(gecmis, n):
     """gecmisteki SON n FARKLI konu turunu (kucuk harf, en yeniden eskiye) dondurur."""
     tur = []
@@ -829,7 +876,7 @@ _KURGU_KURAL = """--- FICTION RULES (non-negotiable) ---
 """
 
 
-def _prompt_kur(gecmis, performans, viraller, reddedilenler, aile="gercek_vaka"):
+def _prompt_kur(gecmis, performans, viraller, reddedilenler, aile="gercek_vaka", tema=""):
     # TUM gecmis verilir: eskiden sadece son 150 konu gidiyordu, model daha eskileri (Oakville,
     # Gloria Ramirez, L-8, McCabe...) tekrar oneriyor, 8 denemenin hepsi TEKRAR diye reddedilip kosu iptal oluyordu.
     onceki = "\n".join("- " + (k.get("topic") or "") for k in gecmis if k.get("topic"))
@@ -874,6 +921,12 @@ right now. Do NOT copy any of these stories, titles or wordings. Your story must
 Channel niche: {NICHE}
 
 {_AILE_BLOK[aile]}
+--- THIS VIDEO'S WORLD (mandatory, picked by rotation so the channel never feels repetitive) ---
+The story MUST take place in / be about: {tema or "any fresh setting"}.
+Pick the MOST viral angle inside that world: a premise anyone (13 or 60 years old) instantly understands in
+one sentence, an everyday situation that turns impossible, a detail people will repeat to friends.
+Do NOT use any of these recent premises or settings again (no remote cabins, no lone old man with a strange
+object unless the world above says so): {"; ".join(_son_mekanlar(gecmis)) or "-"}
 {perf_blok}{viral_blok}
 --- ABSOLUTE RULE: NEVER REPEAT A STORY ---
 These cases have ALREADY been covered by this channel. Your topic must NOT be any of them, must not be a
@@ -1009,7 +1062,9 @@ from "image_prompt", so it must describe them exactly) ---
     "continuity": what carries over from the previous shot (same coat, clock now on the left, same hallway),
     "sfx": one of none|boom|hit|creak|knock|static|heartbeat|whoosh.
   The picture must ADD something the narration does not say (a detail, a reaction, a scale), not just
-  illustrate the sentence. Vary shot sizes: open wide or close, never three wides in a row; the scene where
+  illustrate the sentence. The beat that states the IMPOSSIBLE thing must SHOW it literally and clearly
+  (furniture hanging upside down from the ceiling, footprints walking up the wall) - never a generic
+  person looking scared next to a normal-looking room. Vary shot sizes: open wide or close, never three wides in a row; the scene where
   the key object is described is a close / extreme_close of that object.
 - "hook_text": 2-5 WORDS, UPPERCASE, shown ONLY on the first frame. A concrete contradiction that makes the
   viewer stay (pattern examples only, write your own: "IT HAD NO PENDULUM", "THE DOOR WAS NAILED SHUT"). It must differ from the title, from the
@@ -1169,8 +1224,11 @@ def gemini_uret(performans, viraller):
 
     for tur in range(1, DENEME_SAYISI + 1):
         kati = tur <= KATI_DENEME
-        data = _gemini_cagir(_prompt_kur(gecmis, performans, viraller, reddedilenler, aile))
+        tema = tema_sec(gecmis, aile)
+        print(f"      Tema: {tema}")
+        data = _gemini_cagir(_prompt_kur(gecmis, performans, viraller, reddedilenler, aile, tema))
         data["aile"] = aile
+        data["tema"] = tema
         konu    = (data.get("topic") or "").strip()
         script  = (data.get("script") or "").strip()
         baslik  = (data.get("title") or "").strip()
@@ -3609,6 +3667,7 @@ def main():
             "aile": aile,
             "hook": _ilk_cumle(script),
             "kanca_yazisi": (data.get("_ekran_plani") or {}).get("kanca", ""),
+            "tema": data.get("tema", ""),
             "gorsel_stil": GORSEL_STIL if motor == "cloudflare-flux" else "",
             "tarih": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M"),
             "video_id": video_id,
