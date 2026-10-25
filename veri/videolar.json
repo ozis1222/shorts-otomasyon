@@ -38,6 +38,25 @@
    "durum": "onay_bekliyor",
    "video_id": "",
    "github_run_id": "40228296893"
+  },
+  {
+   "paket_id": "20261025-210957-831819",
+   "olusturma": "2026-10-25T21:09:57.002665+00:00",
+   "aile": "ozgun_korku",
+   "konu": "The Oakhaven Granite Pulse Anomaly",
+   "topic_type": "lab finding",
+   "baslik": "A Rock Quarried 3 Miles Down Echoed His Own HEARTBEAT #Shorts",
+   "sure_sn": 43.09,
+   "gorsel_motoru": "cloudflare-flux",
+   "gorsel_stil": "B",
+   "maliyet_usd": 0.0,
+   "kalite_gecti": true,
+   "kalite_hatalari": [],
+   "uretim_notlari": [],
+   "kaynak_url": "",
+   "durum": "onay_bekliyor",
+   "video_id": "",
+   "github_run_id": "40233428749"
   }
  ]
 }
