@@ -83,3 +83,13 @@ def test_bilinmeyen_medya_kalir():
 def test_kontrol_et_birlesik(iyi_video):
     m = {**META, "aile": "hayatta_kalma", "aciklama": "This is a fictional story. " + META["aciklama"]}
     assert kk.kontrol_et(iyi_video, m)["gecti"] is True
+
+
+def test_kurgu_gercek_olay_etiketiyle_kalir():
+    import kalite_kontrol as kk
+    meta = {"baslik": "The Empty Clock Struck Twelve #Shorts",
+            "aciklama": "This is a fictional story, created for entertainment. A long enough description.",
+            "etiketler": ["horror story", "true mystery", "cold case"], "aile": "ozgun_korku",
+            "medya_kaynagi": ["cloudflare-flux"]}
+    r = {k["kontrol"]: k["durum"] for k in kk.icerik_kontrol(meta)}
+    assert r["kurgu yaniltici etiket"] == "KALDI"

@@ -142,6 +142,11 @@ def icerik_kontrol(meta):
         # Kurgu, gercek olay gibi sunulamaz
         etiketli = "kurgu" in aciklama.lower() or "fiction" in aciklama.lower()
         ekle("kurgu etiketi", etiketli, "aciklamada kurgu oldugu belirtiliyor" if etiketli else "kurgu etiketi YOK")
+        gercek_gibi = [e for e in etiketler if re.search(r"true (story|mystery|crime)|cold case|real story", str(e), re.I)]
+        if re.search(r"#true(story|crime|mystery)", aciklama, re.I):
+            gercek_gibi.append("#hashtag")
+        ekle("kurgu yaniltici etiket", not gercek_gibi,
+             "yok" if not gercek_gibi else f"kurgu gercek olay gibi etiketlenmis: {gercek_gibi[:4]}")
     elif aile == "gercek_vaka":
         kaynak = meta.get("kaynak") or {}
         ekle("kaynak dogrulama", bool(kaynak.get("dogrulandi")),

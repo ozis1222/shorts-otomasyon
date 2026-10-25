@@ -62,6 +62,18 @@ def main(argv=None):
         raise SystemExit(f"DURDU: paket kalite kontrolunden gecmemis -> {kalanlar}. Yuklenmedi.")
 
     import shorts_otomasyon as so
+    import kalite_kontrol as kk
+    # Eski paketler icin: kurgu hikayeden gercek-olay etiketlerini at, icerik kontrolunu yeniden calistir
+    if meta.get("aile") in ("hayatta_kalma", "ozgun_korku"):
+        temiz = [e for e in meta.get("etiketler", []) if not any(g in str(e).lower() for g in so._GERCEK_GIBI)]
+        if len(temiz) != len(meta.get("etiketler", [])):
+            print(f"Etiket  : kurguya uymayan {len(meta['etiketler']) - len(temiz)} etiket cikarildi")
+            meta["etiketler"] = temiz + [e for e in so.SEO_KURGU_ETIKET if e not in temiz][:15 - len(temiz)]
+    icerik = kk.icerik_kontrol(meta)
+    kalan = [k["kontrol"] for k in icerik if k["durum"] == "KALDI"]
+    if kalan:
+        raise SystemExit(f"DURDU: yayin aninda icerik kontrolu kaldi -> {kalan}. Yuklenmedi.")
+
     onceki = daha_once_yuklendi_mi(meta["paket_id"], so.VIDEOLAR_FILE)
     if onceki:
         raise SystemExit(f"DURDU: bu paket zaten yuklenmis (https://youtu.be/{onceki}). Cift yayin engellendi.")

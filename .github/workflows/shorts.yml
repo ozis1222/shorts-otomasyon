@@ -81,7 +81,9 @@ jobs:
           PEXELS_API_KEY:  ${{ secrets.PEXELS_API_KEY }}
           # Girdisiz tetikleme (zamanlayici / cron-job.org) -> SADECE URET, yayinlama (onay bekler)
           PRIVACY:            ${{ inputs.privacy || 'private' }}
-          UPLOAD_TO_YOUTUBE:  ${{ inputs.upload || '0' }}
+          # Dis tetikleyici (cron-job.org vb.) upload=1 gonderse bile yukleme YAPILMAZ; dogrudan yukleme
+          # yalnizca repo degiskeni OTOMATIK_YAYIN=1 iken acilir (kullanici onayiyla). Normal yol: yayinla.yml
+          UPLOAD_TO_YOUTUBE:  ${{ vars.OTOMATIK_YAYIN == '1' && inputs.upload || '0' }}
           RENDER_MOTORU:      ${{ inputs.motor || 'remotion' }}
           # Loglar canli aksin: is zaman asimina ugrarsa nerede takildigi gorunsun
           PYTHONUNBUFFERED:   "1"

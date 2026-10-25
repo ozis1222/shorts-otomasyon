@@ -68,3 +68,28 @@ def test_yayinla_deneme_modu_yuklemez(tmp_path, monkeypatch):
     monkeypatch.setattr(so, "VIDEOLAR_FILE", str(tmp_path / "yok.json"))
     monkeypatch.setattr(so, "youtube_yukle", lambda *a, **k: pytest.fail("deneme modunda yukleme yapildi"))
     assert yayinla.main(["--paket", _paket(tmp_path), "--deneme"]) == 0
+
+
+def test_kurgu_seo_gercek_olay_etiketi_eklemez():
+    import shorts_otomasyon as so
+    _, ac, et = so._seo_duzenle("Baslik burada", "Kisa aciklama metni burada",
+                                ["true story", "creepy tale", "cold case shorts"], "The Blackwood Clock", "ozgun_korku")
+    assert not any(g in e.lower() for e in et for g in ("true", "cold case", "unsolved"))
+    assert "#truestory" not in ac.lower()
+    _, _, et2 = so._seo_duzenle("Baslik burada", "Kisa aciklama", [], "Dyatlov Pass", "gercek_vaka")
+    assert "true mystery" in et2
+
+
+def test_yaygin_kelime_ayni_vaka_sayilmaz():
+    import shorts_otomasyon as so
+    gecmis = [{"topic": "The Disappearance of Lars Mittank",
+               "title": "Security Cameras Caught Lars Mittank Running into the Woods #Shorts"}]
+    assert so.tekrar_mi("The Oakhaven Vault Footage Anomaly", "Security Footage Shows Empty Vault Opening",
+                        "", gecmis) is None
+    assert so.tekrar_mi("Mittank sighting", "Was Lars Mittank Seen Again?", "", gecmis)
+
+
+def test_anlatici_flux_promptundan_cikar():
+    import shorts_otomasyon as so
+    t = so._ANLATICI_RE.sub("a frightened witness", "A stickman narrator pointing at a clock")
+    assert "stickman" not in t.lower() and "narrator" not in t.lower()

@@ -203,6 +203,11 @@ real story stories incident incidents event events disappearance disappearances 
 vanish missing lost gone death deaths died killed murder murders found never that this what who why
 how happened history historical ancient night dark secret secrets famous shocking bizarre haunted
 ghost ghosts shorts short video youtube people person unknown
+the and for with from into over under security cameras cctv footage anomaly anomalies tape tapes
+recording recordings recorder voicemail phone signal message radio route road highway street house
+room midnight clock vault woods forest creek river lake mountain island village town hospital hotel
+school office station railyard tunnel basement attic window mirror photo photograph caught captured
+running shows showed inside outside
 about above after again ahead alive alone along another answer answers appear appeared around arrive
 artifact artifacts asleep attack autumn awake based beach became become before began behind being
 believe below beneath beside between beyond black blood board boat bodies body bones border bottom
@@ -745,20 +750,28 @@ def viral_ornekleri_getir(saat_gecerlilik=20):
 # =========================================================
 SEO_SABIT_ETIKET = ['unsolved mysteries', 'true mystery', 'disappearance', 'cold case', 'unexplained', 'mystery']
 SEO_HASHTAG      = ['#unsolvedmystery', '#mystery', '#unexplained', '#truestory']
+# Kurgu hikayeler gercek olay gibi etiketlenmez ("true mystery", "cold case", "#truestory" yok)
+SEO_KURGU_ETIKET = ['horror story', 'scary story', 'creepy story', 'fictional story', 'mystery']
+SEO_KURGU_HASHTAG = ['#horrorstory', '#scarystory', '#creepy', '#mystery']
+_GERCEK_GIBI = ("true mystery", "true story", "truestory", "cold case", "true crime", "real story",
+                "unsolved mysteries", "disappearance")
 # Izleyiciyi DIGER videolara yonlendiren sabit satir (oturum suresi = kanal buyumesi)
-IZLEME_CAGRISI = ("If this one got you, the next case is even stranger - "
-                  "watch more unsolved mysteries on the channel and subscribe so you never miss one.")
+IZLEME_CAGRISI = ("If this one got you, the next one is even stranger - "
+                  "watch more on the channel and subscribe so you never miss one.")
 
 
-def _seo_duzenle(baslik, aciklama, etiketler, konu=""):
+def _seo_duzenle(baslik, aciklama, etiketler, konu="", aile="gercek_vaka"):
     """Hashtag'i GARANTI eder, etiketleri uzun-kuyruk + kanal sabitleriyle genisletir."""
+    kurgu = aile in ("hayatta_kalma", "ozgun_korku")
     ek = []
     k = (konu or "").strip().lower()
     if k and len(k) <= 40:
-        ek += [k, k + " explained", k + " mystery"]
+        ek += [k, k + " story"] if kurgu else [k, k + " explained", k + " mystery"]
     birlesik, gorulen = [], set()
-    for t in list(etiketler or []) + ek + SEO_SABIT_ETIKET:
+    for t in list(etiketler or []) + ek + (SEO_KURGU_ETIKET if kurgu else SEO_SABIT_ETIKET):
         t = str(t).strip().lstrip("#")
+        if kurgu and any(g in t.lower() for g in _GERCEK_GIBI):
+            continue
         if t and t.lower() not in gorulen and 2 < len(t) <= 40:
             gorulen.add(t.lower())
             birlesik.append(t)
@@ -769,7 +782,7 @@ def _seo_duzenle(baslik, aciklama, etiketler, konu=""):
         ac = ac + "\n\n" + IZLEME_CAGRISI
     if "#" not in ac:
         konu_hash = ["#" + t.replace(" ", "").replace("-", "") for t in birlesik[:3]]
-        hepsi = list(dict.fromkeys(konu_hash + SEO_HASHTAG + ["#shorts"]))
+        hepsi = list(dict.fromkeys(konu_hash + (SEO_KURGU_HASHTAG if kurgu else SEO_HASHTAG) + ["#shorts"]))
         ac = ac + "\n\n" + " ".join(hepsi[:8])
     elif "#shorts" not in ac.lower():
         ac = ac + " #shorts"
@@ -976,6 +989,8 @@ heads, flat colors - like popular stickman explainer channels; it is drawn in co
     (close-up / wide shot / over-the-shoulder). Concrete and visual; never names of real people; no text in the image.
     At least 6 of the scenes must SHOW the story's person(s) acting and reacting (not only objects); use object
     close-ups only for the 1-3 beats where the object itself is the shocking detail.
+    The image_prompt NEVER mentions a narrator, presenter or stickman: the "narrator" role exists only in
+    "characters". For narrator beats, draw the story's own person or the key object instead.
   The FIRST character of a scene is the one whose mouth talks. Scene 1 = the hook: "narrator", shocked,
   pointing at the key prop. Reenact the story with "subject"; return to "narrator" for the twist/ending.
   Pick the prop that IS the beat (the stopped clock, the empty car, the letter). Vary backgrounds.
@@ -1006,6 +1021,7 @@ Return ONLY valid JSON (no markdown, no ```), EXACTLY this shape:
 # Kotasi biten (429) model bu kosu boyunca tekrar denenmez: her fikir denemesinde ayni modele
 # 3 kez bekleyerek donmek kosuyu ~1.5 dk/deneme uzatiyordu (8 denemede 60 dk sinira dayaniyordu).
 _KOTASI_BITEN = set()
+_YOGUN_MODEL = set()   # bu kosuda 503 veren modeller (siraya en sona konur)
 
 
 def _gemini_cagir(prompt):
@@ -1028,6 +1044,8 @@ def _gemini_cagir(prompt):
             gorulen.add(md)
             modeller.append(md)
 
+    # Bu kosuda asiri yuklu (503) cikan modeller sona: her cagride 2 dk zaman asimi beklemeyelim
+    modeller = [m for m in modeller if m not in _YOGUN_MODEL] + [m for m in modeller if m in _YOGUN_MODEL]
     son_hata = None
     if all(m in _KOTASI_BITEN for m in modeller):
         _KOTASI_BITEN.clear()   # hepsi bittiyse bir tur daha sans ver
@@ -1049,6 +1067,11 @@ def _gemini_cagir(prompt):
                 mesaj = str(e).lower()
                 gecici = any(k in mesaj for k in ("503", "429", "500", "unavailable", "overloaded",
                                                   "resource_exhausted", "high demand", "timeout", "deadline"))
+                yogun = any(k in mesaj for k in ("503", "unavailable", "overloaded", "high demand"))
+                if yogun and deneme >= 2:
+                    _YOGUN_MODEL.add(model)
+                    print(f"      Model '{model}' asiri yuklu (503), bu kosuda sona alindi; sonraki modele...")
+                    break
                 if gecici and deneme < 4:
                     bekle = 5 * deneme
                     print(f"      Gemini gecici hata ({model}, deneme {deneme}): {bekle}s bekle...")
@@ -2752,6 +2775,9 @@ def cf_gorsel(prompt, hedef, tohum):
     return False
 
 
+_ANLATICI_RE = re.compile(r"\b(?:an?|the)\s+(?:stick ?man\s+)?(?:narrator|presenter|stick ?man)\b", re.I)
+
+
 def flux_sahneleri(data, sorgular):
     """Gemini'nin sahne tariflerinden (image_prompt) gorselleri uretir -> [(yol, 'foto'), ...]"""
     os.makedirs(MEDYA_KLASORU, exist_ok=True)
@@ -2763,6 +2789,8 @@ def flux_sahneleri(data, sorgular):
     sahneler = [s for s in (data.get("scenes") or []) if isinstance(s, dict)] if isinstance(data, dict) else []
     tarifler = [str(s.get("image_prompt") or "").strip() for s in sahneler]
     tarifler = [t for t in tarifler if t] or [str(q) for q in (data.get("art_prompts") or sorgular or [])]
+    # Anlatici/stickman figuru FLUX gorsellerine girmesin (hikayenin kendi kisisi cizilsin)
+    tarifler = [_ANLATICI_RE.sub("a frightened witness", t) for t in tarifler]
     tohum = random.randint(1, 10_000_000)
     medya = []
     for i, tarif in enumerate(tarifler[:10]):
@@ -3144,7 +3172,7 @@ def main():
         aciklama   = data["description"]
         etiket_lst = data.get("tags", [])
         thumb_yazi = (data.get("thumbnail_text") or "").strip()
-        baslik, aciklama, etiket_lst = _seo_duzenle(baslik, aciklama, etiket_lst, konu)
+        baslik, aciklama, etiket_lst = _seo_duzenle(baslik, aciklama, etiket_lst, konu, data.get("aile", "gercek_vaka"))
         sorgular   = data.get("visual_queries", []) or etiket_lst
         print("      Konu      :", konu)
         print("      Baslik    :", baslik)
