@@ -1,5 +1,5 @@
 {
- "guncelleme": "2026-10-25T13:19:50.018127+00:00",
+ "guncelleme": "2026-10-25T21:10:27.467057+00:00",
  "videolar": [
   {
    "topic": "The 100-Million-Year-Old Hammer That Defies History",
@@ -2281,6 +2281,40 @@
    "tarih": "2026-10-25 13:19",
    "video_id": "fwRFyukp1kU",
    "paket_id": "20261025-131936-2d9980"
+  },
+  {
+   "topic": "The Empty Grandfather Clock STRUCK Twelve Every Midnight",
+   "title": "The Empty Grandfather Clock STRUCK Twelve Every Midnight #Shorts",
+   "hook": "",
+   "tarih": "",
+   "video_id": "",
+   "kaynak": "kanal"
+  },
+  {
+   "topic": "The Inverted Alpine Cabin of Silas Miller",
+   "title": "The Soup Was Served on the CEILING #Shorts",
+   "description": "An 1894 search party discovers a mountain cabin where gravity seems to have inverted for everything but a single book. A chilling look into the final moments of Silas Miller. #horror #mystery #strange #coldcase",
+   "topic_type": "cold case file",
+   "aile": "ozgun_korku",
+   "hook": "Every piece of furniture in the cabin was bolted to the ceiling.",
+   "kanca_yazisi": "THE SOUP STAYED UP",
+   "gorsel_stil": "B",
+   "tarih": "2026-10-25 20:12",
+   "video_id": "TUBO2uFhYLU",
+   "paket_id": "20261025-201146-4784a3"
+  },
+  {
+   "topic": "The Oakhaven Granite Pulse Anomaly",
+   "title": "A Rock Quarried 3 Miles Down Echoed His Own HEARTBEAT #Shorts",
+   "description": "In a subterranean laboratory, a scientist attaches an acoustic sensor to an ancient granite core and detects a rhythm he knows all too well. #Horror #Mystery #Unexplained #Scary #Thriller",
+   "topic_type": "lab finding",
+   "aile": "ozgun_korku",
+   "hook": "The microphone sealed inside solid granite picked up a human heartbeat.",
+   "kanca_yazisi": "SOLID ROCK WAS PULSING",
+   "gorsel_stil": "B",
+   "tarih": "2026-10-25 21:10",
+   "video_id": "",
+   "paket_id": "20261025-210957-831819"
   }
  ]
 }
