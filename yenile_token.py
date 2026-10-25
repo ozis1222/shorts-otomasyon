@@ -28,6 +28,7 @@ TOKEN_FILE = os.path.join(BASE_DIR, "token.json")
 SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",     # video yukleme
     "https://www.googleapis.com/auth/youtube.readonly",   # kendi istatistiklerini okuma
+    "https://www.googleapis.com/auth/yt-analytics.readonly",  # izlenme suresi/yuzdesi, abone kazanimi (analiz)
 ]
 
 

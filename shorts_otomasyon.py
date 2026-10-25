@@ -165,6 +165,7 @@ UPLOAD_TO_YOUTUBE  = os.environ.get("UPLOAD_TO_YOUTUBE", "1") != "0"
 YT_SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",     # video yukleme
     "https://www.googleapis.com/auth/youtube.readonly",   # kendi istatistiklerini okuma (ogrenme)
+    "https://www.googleapis.com/auth/yt-analytics.readonly",  # haftalik analiz (kanal_analiz.py)
 ]
 
 # --- Marka / Abone ol ---
@@ -484,6 +485,41 @@ KONU_TURLERI = [
 ]
 _KONU_TUR_ENUM = " | ".join(KONU_TURLERI)
 
+# --- ICERIK AILELERI (ilk 30 gunluk strateji: uc yakin alan, rastgele konu karisimi yok) ---
+#  gercek_vaka   : belgelenmis gizemli kaybolma vakalari (kaynak dogrulanir, gercek olarak sunulur)
+#  hayatta_kalma : "sen olsan ne yapardin" gerilim/hayatta kalma senaryolari (KURGU, etiketlenir)
+#  ozgun_korku   : ozgun, sinematik korku-gizem kisa hikayeleri (KURGU, etiketlenir)
+# Dagilim veri/icerik_dagilimi.json'dan okunur; haftalik analiz (kanal_analiz.py) bunu performansa
+# gore gunceller. Dosya yoksa esit dagilim.
+AILELER = ("gercek_vaka", "hayatta_kalma", "ozgun_korku")
+DAGILIM_FILE = os.path.join(BASE_DIR, "veri", "icerik_dagilimi.json")
+KURGU_NOTU = "This is a fictional story, created for entertainment. Any resemblance to real events is coincidental."
+
+
+def aile_dagilimi():
+    varsayilan = {a: round(1 / len(AILELER), 3) for a in AILELER}
+    try:
+        with open(DAGILIM_FILE, encoding="utf-8") as f:
+            d = json.load(f).get("agirliklar", {})
+        d = {a: float(d.get(a, 0)) for a in AILELER}
+        toplam = sum(d.values())
+        return {a: v / toplam for a, v in d.items()} if toplam > 0 else varsayilan
+    except Exception:
+        return varsayilan
+
+
+def aile_sec(gecmis):
+    """Agirliga gore aile secer; ayni aile ust uste 3. kez secilmez (cesitlilik)."""
+    zorunlu = os.environ.get("ICERIK_AILESI", "").strip()
+    if zorunlu in AILELER:
+        return zorunlu
+    son = [k.get("aile") for k in gecmis[-2:]]
+    adaylar = dict(aile_dagilimi())
+    if len(son) == 2 and son[0] == son[1] and son[0] in adaylar and len(adaylar) > 1:
+        adaylar.pop(son[0])
+    secim = random.choices(list(adaylar), weights=list(adaylar.values()))[0]
+    return secim
+
 
 def _son_farkli_turler(gecmis, n):
     """gecmisteki SON n FARKLI konu turunu (kucuk harf, en yeniden eskiye) dondurur."""
@@ -743,7 +779,44 @@ def _seo_duzenle(baslik, aciklama, etiketler, konu=""):
 # =========================================================
 #  5) GEMINI ile konu + senaryo + gorsel kelimeleri uret
 # =========================================================
-def _prompt_kur(gecmis, performans, viraller, reddedilenler):
+_AILE_BLOK = {
+    "gercek_vaka": """--- THIS VIDEO'S CONTENT FAMILY: REAL DISAPPEARANCE CASE ---
+A real, documented disappearance: a person, a group, a ship, a plane or an expedition that was really lost.
+Keep it eerie and suspenseful but factual. Present unproven theories AS theories, never as fact.
+It must have an English Wikipedia article: put its EXACT article title in "wikipedia_title" (it is verified
+automatically; a wrong title means the idea is rejected).
+""",
+    "hayatta_kalma": """--- THIS VIDEO'S CONTENT FAMILY: SURVIVAL / "WHAT WOULD YOU DO" SCENARIO (FICTION) ---
+An ORIGINAL fictional survival thriller told in second person or about one named fictional character:
+trapped, stranded, hunted or facing an impossible choice (a sealed bunker, a stalled elevator in a blackout,
+a night shift at a remote station, a broken-down car on an empty road...). Escalating danger, a hard decision,
+a twist ending. Use invented first names only - NEVER real people, real crimes or real victims, and never
+claim it really happened. Set "wikipedia_title" to "".
+""",
+    "ozgun_korku": """--- THIS VIDEO'S CONTENT FAMILY: ORIGINAL CINEMATIC HORROR-MYSTERY STORY (FICTION) ---
+An ORIGINAL short horror/mystery story with ONE eerie premise, a slow-building wrongness and a chilling
+final reveal (think: a perfect "two-sentence horror" stretched into a cinematic short). Invented characters
+and places only - NEVER real people or real tragedies, and never present it as a true event.
+No gore; dread comes from what is implied. Set "wikipedia_title" to "".
+""",
+}
+
+_GERCEK_KURAL = """--- REAL CASES ONLY: THIS MUST BE A REAL, NAMED, DATED EVENT (non-negotiable) ---
+- The event actually happened and is independently documented. Use the REAL full name of the person /
+  ship / plane / place involved, and the REAL year (add the month or day only when it matters).
+- NEVER invent or guess names, dates, places, quotes, numbers or evidence. If you are not certain the
+  name and year are real and verifiable, choose a different, better-documented case.
+- Favor cases with a strong, named human at the center and ONE shocking, concrete, documented detail.
+"""
+
+_KURGU_KURAL = """--- FICTION RULES (non-negotiable) ---
+- Everything is invented: invented first names, invented small places (or generic real cities/terrain only).
+- Do NOT reference real crimes, real victims or real disasters. Do NOT say "true story" or "this really happened".
+- Give it a real story arc: setup -> rising danger -> a decision or discovery -> a twist the viewer did not see coming.
+"""
+
+
+def _prompt_kur(gecmis, performans, viraller, reddedilenler, aile="gercek_vaka"):
     # TUM gecmis verilir: eskiden sadece son 150 konu gidiyordu, model daha eskileri (Oakville,
     # Gloria Ramirez, L-8, McCabe...) tekrar oneriyor, 8 denemenin hepsi TEKRAR diye reddedilip kosu iptal oluyordu.
     onceki = "\n".join("- " + (k.get("topic") or "") for k in gecmis if k.get("topic"))
@@ -786,12 +859,7 @@ right now. Do NOT copy any of these stories, titles or wordings. Your story must
     return f"""You are the head writer for a HIGH-QUALITY, curiosity-driven ENGLISH YouTube Shorts channel.
 Channel niche: {NICHE}
 
---- STAY IN YOUR LANE ---
-This channel is ONLY about real UNSOLVED MYSTERIES and unexplained events: mysterious disappearances
-(people, ships, planes, expeditions), strange unsolved historical cases, eerie unexplained phenomena,
-famous cold cases, and dark true mysteries that were never solved.
-Keep it eerie and suspenseful, based on REAL documented cases. Present unproven theories AS theories,
-never as fact. Do NOT invent fake names, dates or numbers.
+{_AILE_BLOK[aile]}
 {perf_blok}{viral_blok}
 --- ABSOLUTE RULE: NEVER REPEAT A STORY ---
 These cases have ALREADY been covered by this channel. Your topic must NOT be any of them, must not be a
@@ -810,24 +878,12 @@ This channel is NOT just "missing people" - stories about a strange object, an o
 signal, a piece of CCTV, a lab finding, an archaeological find or a cold-war file are just as strong.
 Actively favor NON-disappearance angles.
 
-Pick a genuinely FRESH, SPECIFIC, REAL, DOCUMENTED case that fits the chosen type. Vary country and
-century every time. It must be a case a curious viewer has almost certainly never heard.
+Pick a genuinely FRESH, SPECIFIC idea that fits this content family. Vary country, era and setting every time.
 
---- THIS MUST BE A REAL, NAMED, DATED EVENT (non-negotiable) ---
-- The event actually happened and is independently documented. Use the REAL full name of the person /
-  ship / plane / place involved, and the REAL year (add the month or day only when it matters).
-- It must feel like a true documented case file, NOT a generic tale. NEVER use vague, anonymous,
-  fiction-flavored framing such as "a man", "a woman", "someone", "a small town" or "years ago" when a
-  real identity and date exist - name them plainly.
-- NEVER invent or guess names, dates, places, quotes, numbers or evidence. If you are not certain the
-  name and year are real and verifiable, choose a different, better-documented case.
-- Favor cases with a strong, named human at the center and ONE shocking, concrete, documented detail.
-  That "based on a true story" weight - a real name, a real date, a real piece of evidence - is exactly
-  what makes these videos go viral. A vague, name-less story feels fake and gets swiped away.
-
+{_GERCEK_KURAL if aile == 'gercek_vaka' else _KURGU_KURAL}
 --- SCRIPT RULES (spoken narration) -- write like a Netflix / HBO true-crime doc, not an AI narrator ---
-- Language: English. Length: 60-80 words (about 30-35 seconds spoken). NEVER exceed 40 seconds.
-- Pick a case that can be FULLY told in 30-35 seconds: ONE idea, ONE payoff.
+- Language: English. Length: 100-140 words (about 40-55 seconds spoken). NEVER exceed 58 seconds.
+- ONE idea, ONE payoff, a full arc: setup, escalation, the key detail, a strong ending. No filler or repetition.
 - GOLDEN RULE - SHOW THE EVENT, DO NOT LABEL IT. Never tell the viewer a mystery happened; make them
   feel like an invisible witness standing inside the scene, opening a classified file for the first time.
   * WRONG: "The man vanished."   RIGHT: "The elevator reached the top floor empty."
@@ -846,13 +902,13 @@ century every time. It must be a case a curious viewer has almost certainly neve
   * You MAY put the person's real name inside the hook if it hits hard, but still LEAD with the shocking
     concrete fact. NEVER open with a bare date/year ("In 1972..."), "Did you know", "Imagine", or a question.
 - Then keep tension rising with short, punchy sentences. No filler, no throat-clearing, no summarising.
-- ANCHOR IT AS REAL: within the first ~8 seconds, state the REAL name and the REAL year and place, so the
-  viewer immediately feels this is a documented true event, not a made-up story.
+- ANCHOR IT: within the first ~8 seconds say who, where and when (real case: the REAL name, year and place;
+  fiction: the character's first name and a concrete setting).
 - PACING - drop a NEW concrete detail every 2-3 seconds (a fact, an object, a number, a piece of
   evidence). The viewer must never be able to guess what the next line reveals.
-- Loose beat map: 0-2s shocking contradiction | 2-8s the REAL name, the REAL year and the place (so it
-  lands as a true documented case) | 8-18s tension climbs, new detail each beat | 18-28s the single
-  most important piece of evidence | 28-35s the line that stays in their head.
+- Loose beat map (flexible, not a template): 0-2s shocking contradiction | 2-8s who/where/when |
+  8-25s tension climbs, new detail each beat | 25-42s the key evidence or the hard decision |
+  42-55s the twist / the line that stays in their head.
 - The FINAL sentence is the most disturbing concrete detail of the whole case - never a summary,
   never "the case is still open". End on one unresolved physical fact, then it stops.
 - PERSONAL RELEVANCE (biggest measured subscriber driver): before the halfway point, land ONE line
@@ -930,7 +986,8 @@ heads, flat colors - like popular stickman explainer channels; it is drawn in co
 
 Return ONLY valid JSON (no markdown, no ```), EXACTLY this shape:
 {{
-  "topic": "short specific topic label naming the actual case",
+  "topic": "short specific topic label naming the actual case or the fictional premise",
+  "wikipedia_title": "exact English Wikipedia article title (real cases only, else empty string)",
   "topic_type": "exactly ONE of: {_KONU_TUR_ENUM}",
   "script": "the full narration text as one paragraph",
   "title": "catchy, curiosity-driven YouTube title under 70 characters, include #Shorts",
@@ -1008,6 +1065,39 @@ DENEME_SAYISI = 8
 KATI_DENEME   = 5     # ilk 5 deneme siki eleme, sonrasi sadece 'ayni vaka' engeli
 
 
+def wikipedia_dogrula(baslik):
+    """
+    Gercek vaka icin Ingilizce Wikipedia maddesinin VAR oldugunu dogrular (ucretsiz MediaWiki API).
+    Donus: {dogrulandi, url, baslik, yok}. yok=True -> madde kesin olarak yok (fikir reddedilir);
+    ag/limit hatasinda yok=False, dogrulandi=False -> kalite kontrol videoyu yayina vermez.
+    """
+    import time
+    sonuc = {"dogrulandi": False, "url": "", "baslik": str(baslik or ""), "yok": False}
+    if not baslik or not str(baslik).strip():
+        sonuc["yok"] = True
+        return sonuc
+    params = {"action": "query", "titles": str(baslik).strip(), "redirects": 1, "prop": "info",
+              "inprop": "url", "format": "json"}
+    for deneme in range(3):
+        try:
+            r = _http_get("https://en.wikipedia.org/w/api.php", params=params, timeout=20,
+                          headers={"User-Agent": "unsadark-shorts-bot/1.0 (source verification)"})
+            if r.status_code == 429:
+                time.sleep(4 * (deneme + 1))
+                continue
+            sayfalar = (r.json().get("query") or {}).get("pages") or {}
+            for sayfa in sayfalar.values():
+                if "missing" in sayfa or "invalid" in sayfa:
+                    sonuc["yok"] = True
+                elif sayfa.get("ns") == 0:
+                    sonuc.update(dogrulandi=True, url=sayfa.get("fullurl", ""), baslik=sayfa.get("title", baslik))
+            return sonuc
+        except Exception as e:
+            print("      (wikipedia dogrulamasi denemesi basarisiz:", str(e)[:80], ")")
+            time.sleep(2)
+    return sonuc
+
+
 def gemini_uret(performans, viraller):
     """
     Gecmisle CAKISMAYAN, hook'u SAGLAM bir fikir uretilene kadar dener.
@@ -1015,6 +1105,8 @@ def gemini_uret(performans, viraller):
     """
     gecmis = gecmisi_oku()
     print(f"      Hafizada {len(gecmis)} islenmis konu var (hicbiri tekrar edilmeyecek)")
+    aile = aile_sec(gecmis)
+    print(f"      Icerik ailesi: {aile}  (dagilim: {', '.join(f'{k}={v:.0%}' for k, v in aile_dagilimi().items())})")
     reddedilenler = []
     # Sadece USLUP sebebiyle (hook / yasak kelime / tarih / tur rotasyonu) reddedilen ama
     # TEKRAR OLMAYAN son fikir. Hicbir fikir tum kurallardan gecemezse kosuyu iptal etmek
@@ -1023,7 +1115,8 @@ def gemini_uret(performans, viraller):
 
     for tur in range(1, DENEME_SAYISI + 1):
         kati = tur <= KATI_DENEME
-        data = _gemini_cagir(_prompt_kur(gecmis, performans, viraller, reddedilenler))
+        data = _gemini_cagir(_prompt_kur(gecmis, performans, viraller, reddedilenler, aile))
+        data["aile"] = aile
         konu    = (data.get("topic") or "").strip()
         script  = (data.get("script") or "").strip()
         baslik  = (data.get("title") or "").strip()
@@ -1056,15 +1149,23 @@ def gemini_uret(performans, viraller):
         # GERCEK, TARIHLI VAKA garantisi: yasanmis bir olay her zaman bir tarih icerir.
         # 4 haneli yil (1000-2099) VEYA antik referans (AD/BC/CE/century) araniyor. Yoksa
         # hikaye 'bir adam bir kadin yasadi' gibi jenerik/uydurma hissi verir -> reddet.
-        if not (re.search(r"\b(1\d{3}|20\d\d)\b", script)
+        if aile == "gercek_vaka" and not (re.search(r"\b(1\d{3}|20\d\d)\b", script)
                 or re.search(r"\b(\d{1,4}\s?(?:ad|bc|ce|bce)|centur(?:y|ies))\b", script, re.I)):
             reddedilenler.append(konu)
             print(f"      [{tur}] TARIH YOK reddedildi -> script gercek bir yil/tarih icermiyor (isimli-tarihli olmali)")
             yedek = data
             continue
 
+        if aile == "gercek_vaka":
+            kaynak = wikipedia_dogrula(data.get("wikipedia_title"))
+            data["kaynak"] = kaynak
+            if kaynak["yok"]:
+                reddedilenler.append(konu)
+                print(f"      [{tur}] KAYNAK YOK -> '{data.get('wikipedia_title')}' Wikipedia'da bulunamadi (gercek vaka kaynaksiz anlatilmaz)")
+                continue
+
         ttype = (data.get("topic_type") or "").strip().lower()
-        yasak_tur = _son_farkli_turler(gecmis, 2 if kati else 1)
+        yasak_tur = _son_farkli_turler(gecmis, 2 if kati else 1) if aile == "gercek_vaka" else []
         if ttype and ttype in yasak_tur:
             reddedilenler.append(konu)
             print(f"      [{tur}] TUR TEKRARI reddedildi -> '{ttype}' (son turler: {yasak_tur})")
@@ -1074,6 +1175,8 @@ def gemini_uret(performans, viraller):
         print(f"      [{tur}] onaylandi: {konu}  [tur: {ttype or '-'}]")
         return data
 
+    if yedek and aile == "gercek_vaka" and "kaynak" not in yedek:
+        yedek["kaynak"] = wikipedia_dogrula(yedek.get("wikipedia_title"))
     if yedek:
         print(f"      Tum kurallardan gecen fikir cikmadi -> tekrar OLMAYAN son fikir kullaniliyor: "
               f"{(yedek.get('topic') or '').strip()}")
@@ -2900,6 +3003,115 @@ def youtube_yukle(dosya, baslik, aciklama, etiket_listesi, thumb_path=None):
 
 
 # =========================================================
+#  10b) YAYIN PAKETI + VIDEO KAYITLARI
+#       Uretim ile yayin ayridir: her kosu cikti/paket/ altina video + thumbnail + meta.json
+#       yazar ve kalite kontrolunden gecirir. yayinla.py bu paketi (onay sonrasi) yukler.
+# =========================================================
+PAKET_KLASORU = os.path.join(BASE_DIR, "cikti", "paket")
+VIDEOLAR_FILE = os.path.join(BASE_DIR, "veri", "videolar.json")
+
+
+def _json_oku(yol, varsayilan):
+    try:
+        with open(yol, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return varsayilan
+
+
+def _json_yaz(yol, veri):
+    os.makedirs(os.path.dirname(yol), exist_ok=True)
+    gecici = yol + ".tmp"
+    with open(gecici, "w", encoding="utf-8") as f:
+        json.dump(veri, f, ensure_ascii=False, indent=1)
+    os.replace(gecici, yol)   # yarim yazilmis dosya kalmaz
+
+
+def video_kaydi_ekle(kayit):
+    kayitlar = _json_oku(VIDEOLAR_FILE, {"videolar": []})
+    kayitlar.setdefault("videolar", []).append(kayit)
+    _json_yaz(VIDEOLAR_FILE, kayitlar)
+
+
+def video_kaydi_guncelle(paket_id, **alanlar):
+    kayitlar = _json_oku(VIDEOLAR_FILE, {"videolar": []})
+    for k in kayitlar.get("videolar", []):
+        if k.get("paket_id") == paket_id:
+            k.update(alanlar)
+            break
+    _json_yaz(VIDEOLAR_FILE, kayitlar)
+    # gecmis.json'daki konu kaydina da video kimligini yaz (analiz eslestirmesi icin)
+    if alanlar.get("video_id") and os.path.exists(GECMIS_FILE):
+        g = _json_oku(GECMIS_FILE, {})
+        for k in (g.get("videolar") or []):
+            if k.get("paket_id") == paket_id:
+                k["video_id"] = alanlar["video_id"]
+        _json_yaz(GECMIS_FILE, g)
+
+
+def aciklama_son_hali(aciklama, aile, kaynak, motor):
+    """Kurgu etiketi / kaynak satiri / AI cizim notu: izleyiciyi yaniltmayan aciklama."""
+    satirlar = [aciklama.strip()]
+    if aile in ("hayatta_kalma", "ozgun_korku") and KURGU_NOTU not in aciklama:
+        satirlar.insert(0, KURGU_NOTU)
+    if aile == "gercek_vaka" and kaynak.get("url") and kaynak["url"] not in aciklama:
+        satirlar.append("Source: " + kaynak["url"])
+    if motor in ("cloudflare-flux", "pollinations"):
+        satirlar.append("Illustrations created with AI image tools; story, edit and narration produced by Unsadark.")
+    return "\n\n".join(s for s in satirlar if s)
+
+
+def yayin_paketi_hazirla(baslik, aciklama, etiketler, thumb, aile, konu, topic_type, script, kaynak, motor,
+                         sahneler, notlar):
+    import shutil
+    import uuid
+    import kalite_kontrol as kk
+
+    if os.path.isdir(PAKET_KLASORU):
+        shutil.rmtree(PAKET_KLASORU, ignore_errors=True)
+    os.makedirs(PAKET_KLASORU, exist_ok=True)
+    simdi = datetime.datetime.now(datetime.timezone.utc)
+    paket_id = simdi.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
+    video = os.path.join(PAKET_KLASORU, "video.mp4")
+    if os.path.exists(OUTPUT_FILE):
+        shutil.copyfile(OUTPUT_FILE, video)
+    if thumb and os.path.exists(thumb):
+        shutil.copyfile(thumb, os.path.join(PAKET_KLASORU, "thumbnail.jpg"))
+
+    medya_kaynagi = {"cloudflare-flux": ["cloudflare-flux"], "kod-cizim": ["kod-cizim"],
+                     "pollinations": ["pollinations"], "stok": ["pexels", "pixabay", "pollinations"]}.get(motor, [])
+    meta = {
+        "paket_id": paket_id,
+        "olusturma": simdi.isoformat(),
+        "github_run_id": os.environ.get("GITHUB_RUN_ID", ""),
+        "aile": aile, "konu": konu, "topic_type": topic_type,
+        "baslik": baslik, "aciklama": aciklama, "etiketler": etiketler,
+        "script": script, "sahne_tarifleri": sahneler,
+        "kaynak": kaynak, "gorsel_motoru": motor,
+        "medya_kaynagi": medya_kaynagi + ["edge-tts", "sentetik-ses"],
+        "maliyet_usd": 0.0,   # tum servisler ucretsiz katmanda
+        "uretim_notlari": notlar,
+    }
+    print("[QC] Kalite + uygunluk kontrolu:")
+    sonuc = kk.kontrol_et(video, meta)
+    kk.ozet_yazdir(sonuc)
+    meta["kalite"] = sonuc
+    meta["sure_sn"] = round(kk.video_bilgisi(video)["sure"] or 0, 2) if os.path.exists(video) else 0
+    _json_yaz(os.path.join(PAKET_KLASORU, "meta.json"), meta)
+
+    video_kaydi_ekle({
+        "paket_id": paket_id, "olusturma": meta["olusturma"], "aile": aile, "konu": konu,
+        "topic_type": topic_type, "baslik": baslik, "sure_sn": meta["sure_sn"],
+        "gorsel_motoru": motor, "maliyet_usd": 0.0, "kalite_gecti": sonuc["gecti"],
+        "kalite_hatalari": [k["kontrol"] for k in sonuc["kontroller"] if k["durum"] == "KALDI"],
+        "uretim_notlari": notlar, "kaynak_url": kaynak.get("url", ""),
+        "durum": "onay_bekliyor" if sonuc["gecti"] else "kalite_reddi",
+        "video_id": "", "github_run_id": meta["github_run_id"],
+    })
+    return {"klasor": PAKET_KLASORU, "meta": meta}
+
+
+# =========================================================
 #  11) ANA AKIS
 # =========================================================
 def main():
@@ -2952,6 +3164,8 @@ def main():
     art = [str(a).strip() for a in (data.get("art_prompts") or []) if str(a).strip()]
     hazir = False
     medya = []
+    motor = ""                 # hangi gorsel motoru kullanildi (lisans/kalite kaydi icin)
+    uretim_notlari = []        # yedege dusmeler vb. (veri/videolar.json'a yazilir)
     if stick and cf_hazir():
         # Hikayeye ozel cizgi film sahneleri (Cloudflare FLUX, ucretsiz kota)
         print("[4/6] Hikaye sahneleri ciziliyor (Cloudflare FLUX)...")
@@ -2961,10 +3175,12 @@ def main():
             try:
                 remotion_olustur(words, medya, data, thumb_yazi, OUTPUT_FILE, cizgi=True)
                 hazir = True
+                motor = "cloudflare-flux"
             except Exception as e:
                 print("      (FLUX videosu render edilemedi, stickman yedegine geciliyor:", str(e)[:200], ")")
         else:
             print("      (yeterli FLUX sahnesi yok, stickman yedegine geciliyor)")
+            uretim_notlari.append(f"FLUX yetersiz ({len(medya)} sahne), stickman yedegi")
         if not hazir:
             medya = []
     if stick and not hazir:
@@ -2975,6 +3191,7 @@ def main():
             kare = stickman_olustur(words, data, thumb_yazi, OUTPUT_FILE,
                                     thumb_path=os.path.join(MEDYA_KLASORU, "stickman_kare.png"))
             hazir = True
+            motor = motor or "kod-cizim"
             if kare:
                 medya = [(kare, "foto")]
         except Exception as e:
@@ -2996,11 +3213,14 @@ def main():
         try:
             remotion_olustur(words, medya, data, thumb_yazi, OUTPUT_FILE)
             hazir = True
+            motor = "pollinations"
         except Exception as e:
             print("      (Remotion basarisiz, MoviePy yedek motoruna geciliyor:", str(e)[:200], ")")
+            uretim_notlari.append("Remotion hatasi, MoviePy yedegi: " + str(e)[:120])
     if not hazir:
         print("[5/6] Video kurgulaniyor (MoviePy)... (biraz surebilir)")
         video_olustur(words, medya, OUTPUT_FILE)
+        motor = "stok"
     print("      Video hazir ->", OUTPUT_FILE)
 
     # Thumbnail
@@ -3010,13 +3230,29 @@ def main():
     except Exception as e:
         print("      (thumbnail uretilemedi, video yine de yuklenecek:", str(e)[:140], ")")
 
-    # YouTube
+    # --- Yayin paketi + kalite/uygunluk kontrolu (uretim ve yayin birbirinden ayri) ---
+    aile = data.get("aile") or ("gercek_vaka" if not MANUAL_MODE else "")
+    kaynak = data.get("kaynak") or {}
+    aciklama = aciklama_son_hali(aciklama, aile, kaynak, motor)
+    paket = yayin_paketi_hazirla(
+        baslik=baslik, aciklama=aciklama, etiketler=etiket_lst, thumb=thumb, aile=aile, konu=konu,
+        topic_type=(data.get("topic_type") or "").strip(), script=script, kaynak=kaynak, motor=motor,
+        sahneler=[s.get("image_prompt", "") for s in (data.get("scenes") or []) if isinstance(s, dict)],
+        notlar=uretim_notlari)
+    gecti = paket["meta"]["kalite"]["gecti"]
+
+    # YouTube: yalnizca acikca istenmisse (UPLOAD_TO_YOUTUBE=1) VE kalite kontrolu gectiyse.
+    # Varsayilan akis 'onay': video paketlenir, kullanici yayinla.yml ile onaylayinca yuklenir.
     video_id = ""
-    if UPLOAD_TO_YOUTUBE:
-        print("[6/6] YouTube yukleme...")
+    if UPLOAD_TO_YOUTUBE and gecti:
+        print("[6/6] YouTube yukleme (dogrudan, UPLOAD_TO_YOUTUBE=1)...")
         video_id = youtube_yukle(OUTPUT_FILE, baslik, aciklama, etiket_lst, thumb) or ""
+        video_kaydi_guncelle(paket["meta"]["paket_id"], video_id=video_id, durum="yayinlandi",
+                             gizlilik=PRIVACY)
+    elif UPLOAD_TO_YOUTUBE:
+        print("[6/6] Kalite kontrolunden GECMEDI -> YouTube'a yuklenmedi.")
     else:
-        print("[6/6] YouTube yukleme KAPALI (UPLOAD_TO_YOUTUBE=0).")
+        print(f"[6/6] Onay bekliyor: paket -> {PAKET_KLASORU} (yayinlamak icin yayinla.yml)")
 
     # Hafizaya yaz -> bu hikaye BIR DAHA ASLA uretilmez
     if not MANUAL_MODE:
@@ -3025,12 +3261,17 @@ def main():
             "title": baslik,
             "description": (data.get("description") or "").strip(),
             "topic_type": (data.get("topic_type") or "").strip(),
+            "aile": aile,
             "hook": _ilk_cumle(script),
             "tarih": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M"),
             "video_id": video_id,
+            "paket_id": paket["meta"]["paket_id"],
         })
         print("      Konu kalici hafizaya yazildi (gecmis.json).")
 
+    if not gecti:
+        # Basarisiz video basarili gibi isaretlenmez: is KIRMIZI biter, paket 'kalite_reddi' kalir
+        raise RuntimeError("Video kalite/uygunluk kontrolunden gecmedi (ayrintilar yukarida, paket meta.json'da).")
     print("\nBITTI - tamamlandi.")
 
 
