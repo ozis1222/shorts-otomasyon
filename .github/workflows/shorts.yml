@@ -18,6 +18,10 @@ on:
         description: "Onaysiz DOGRUDAN yukle? 0=hayir (onerilen: paket uret, sonra Yayinla ile onayla), 1=evet"
         type: string
         default: "0"
+      gorsel_stil:
+        description: "Gorsel stil: A (varsayilan, iyilestirilmis), B (daha sinematik), AB (deney: gune gore donusumlu)"
+        type: string
+        default: ""
       motor:
         description: "Render motoru: remotion = animasyon, moviepy = eski stok klip"
         type: choice
@@ -85,6 +89,7 @@ jobs:
           # yalnizca repo degiskeni OTOMATIK_YAYIN=1 iken acilir (kullanici onayiyla). Normal yol: yayinla.yml
           UPLOAD_TO_YOUTUBE:  ${{ vars.OTOMATIK_YAYIN == '1' && inputs.upload || '0' }}
           RENDER_MOTORU:      ${{ inputs.motor || 'remotion' }}
+          GORSEL_STIL:        ${{ inputs.gorsel_stil || vars.GORSEL_STIL || 'A' }}
           # Loglar canli aksin: is zaman asimina ugrarsa nerede takildigi gorunsun
           PYTHONUNBUFFERED:   "1"
         run: python shorts_otomasyon.py

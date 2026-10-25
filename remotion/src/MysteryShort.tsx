@@ -5,7 +5,7 @@ import {Altyazi} from './components/Altyazi';
 import {Atmosfer, FilmKatmani, IlerlemeCubugu} from './components/Atmosfer';
 import {DosyaKarti} from './components/DosyaKarti';
 import {Gecis} from './components/Gecis';
-import {Cta, Logo, Manset} from './components/Marka';
+import {Cta, KancaYazisi, Logo, Manset, SahneYazisi} from './components/Marka';
 import {SahneKatmani} from './components/SahneKatmani';
 import type {ShortProps} from './types';
 
@@ -13,6 +13,8 @@ loadFont({family: 'Anton', url: staticFile('Anton-Regular.ttf')});
 
 const KART_SN = 3.6;
 const CTA_SN = 2.4;
+const KANCA_SN = 2.2;
+const SAHNE_YAZI_SN = 2.4;
 // Sahneler kesisir: bir sonraki sahnenin gecisi oynarken eskisi altta kalir -> siyah kare olmaz
 const ORTUSME_KARE = 2;
 
@@ -32,6 +34,16 @@ export const MysteryShort: React.FC<ShortProps> = (p) => {
 							<SahneKatmani sahne={s} sureKare={sure} sira={i} canli={!!p.cizgi} />
 							{i > 0 && <Gecis tur={s.transition} tohum={i} />}
 						</AbsoluteFill>
+						{s.text && i > 0 && (
+							<Sequence durationInFrames={Math.min(sure, kare(SAHNE_YAZI_SN))} layout="none">
+								<SahneYazisi metin={s.text} sureKare={Math.min(sure, kare(SAHNE_YAZI_SN))} />
+							</Sequence>
+						)}
+						{s.sfx && (
+							<Sequence durationInFrames={kare(2.5)} layout="none">
+								<Audio src={staticFile(s.sfx)} volume={0.6} />
+							</Sequence>
+						)}
 					</Sequence>
 				);
 			})}
@@ -39,9 +51,21 @@ export const MysteryShort: React.FC<ShortProps> = (p) => {
 			{!p.cizgi && <Atmosfer />}
 
 			{/* Altyazi okunurlugu icin alt yarida yumusak karartma */}
-			<AbsoluteFill style={{background: 'linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.25) 100%)'}} />
+			<AbsoluteFill
+				style={{
+					background: p.cizgi
+						? 'linear-gradient(180deg, transparent 52%, rgba(0,0,0,0.38) 62%, rgba(0,0,0,0.38) 72%, transparent 82%)'
+						: 'linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.25) 100%)',
+				}}
+			/>
 
-			<Manset metin={p.headline} />
+			{/* Kirmizi baslik bandi yalnizca acikca istenirse (eski gorunum); varsayilan: ilk karede tek kanca */}
+			{(p.band ?? !p.cizgi) && <Manset metin={p.headline} />}
+			{p.hook && (
+				<Sequence durationInFrames={kare(KANCA_SN)} layout="none">
+					<KancaYazisi metin={p.hook} sureKare={kare(KANCA_SN)} />
+				</Sequence>
+			)}
 
 			{p.caseCard && (
 				<Sequence from={kare(p.caseCard.start)} durationInFrames={kare(KART_SN)} layout="none">
@@ -49,7 +73,13 @@ export const MysteryShort: React.FC<ShortProps> = (p) => {
 				</Sequence>
 			)}
 
-			<Altyazi gruplar={p.captions} anahtarlar={p.keywords} />
+			<Altyazi
+				gruplar={p.captions}
+				anahtarlar={p.keywords}
+				sade={!!p.cizgi}
+				ust={p.captionTop ?? (p.cizgi ? 1150 : '60%')}
+				boyut={p.captionSize ?? (p.cizgi ? 80 : 118)}
+			/>
 
 			{p.subscribeAt > 0 && (
 				<Sequence from={kare(p.subscribeAt)} durationInFrames={kare(CTA_SN)} layout="none">
@@ -71,6 +101,7 @@ export const MysteryShort: React.FC<ShortProps> = (p) => {
 			{p.ambient && <Audio src={staticFile(p.ambient)} volume={0.55} />}
 			{p.sfx.boom && <Audio src={staticFile(p.sfx.boom)} volume={0.9} />}
 			{p.sfx.whoosh &&
+				!p.cizgi &&
 				p.scenes.slice(1).map((s, i) => (
 					<Sequence key={`w${i}`} from={Math.max(0, kare(s.start) - 3)} durationInFrames={kare(1)} layout="none">
 						<Audio src={staticFile(p.sfx.whoosh as string)} volume={0.32} />

@@ -230,7 +230,8 @@ def aile_eslestir(videolar):
         try:
             with open(yol, encoding="utf-8") as f:
                 for k in json.load(f).get(anahtar, []):
-                    bilgi = {"aile": k.get("aile") or "", "topic_type": k.get("topic_type") or ""}
+                    bilgi = {"aile": k.get("aile") or "", "topic_type": k.get("topic_type") or "",
+                             "gorsel_stil": k.get("gorsel_stil") or ""}
                     if k.get("video_id"):
                         eslesme.setdefault(k["video_id"], bilgi)
                     for b in (k.get("baslik"), k.get("title")):
@@ -243,7 +244,36 @@ def aile_eslestir(videolar):
         # Strateji oncesi videolar (aile alani yok) 'eski_format' grubunda tutulur
         v["aile"] = bilgi.get("aile") or "eski_format"
         v["topic_type"] = bilgi.get("topic_type") or ""
+        v["gorsel_stil"] = bilgi.get("gorsel_stil") or ""
     return videolar
+
+
+def stil_karsilastir(videolar, gunluk, vid_an, yas=7):
+    """Gorsel stil (A/B) karsilastirmasi. Yalnizca ayni yayin yasindaki izlenme ve Analytics
+    metrikleri kullanilir; her stilde en az MIN_ORNEK video olmadan KAZANAN ILAN EDILMEZ.
+    Donus: {stil: {sayi, izlenme_7g, izleme_yuzdesi, izleme_sn, abone}}"""
+    ozet = {}
+    for v in videolar:
+        stil = v.get("gorsel_stil")
+        if not stil:
+            continue
+        o = ozet.setdefault(stil, {"sayi": 0, "izlenme_7g": [], "izleme_yuzdesi": [], "izleme_sn": [], "abone": []})
+        o["sayi"] += 1
+        skor = _yas_esli_skor(v, gunluk, yas)
+        if skor is not None:
+            o["izlenme_7g"].append(skor)
+        m = (vid_an or {}).get(v["video_id"]) or {}
+        for alan, anahtar in (("izleme_yuzdesi", "averageViewPercentage"), ("izleme_sn", "averageViewDuration"),
+                              ("abone", "subscribersGained")):
+            if m.get(anahtar) is not None:
+                o[alan].append(m[anahtar])
+    sonuc = {}
+    for stil, o in ozet.items():
+        sonuc[stil] = {"sayi": o["sayi"]}
+        for alan in ("izlenme_7g", "izleme_yuzdesi", "izleme_sn", "abone"):
+            sonuc[stil][alan] = round(statistics.median(o[alan]), 1) if o[alan] else None
+            sonuc[stil][alan + "_n"] = len(o[alan])
+    return sonuc
 
 
 # ------------------------------------------------------------------ komutlar
@@ -324,8 +354,23 @@ def haftalik():
                         + ("" if len(liste) >= MIN_ORNEK else "  (az veri - karar verilmedi)"))
     satirlar.append("")
 
-    satirlar.append("## Sure kovalarina gore (Analytics ortalama izlenme yuzdesi)")
     vid_an = an.get("video") or {}
+    satirlar.append("## Gorsel stil A/B (ayni yayin yasinda; farkli hikayeler, donusumlu yayin)")
+    stiller = stil_karsilastir(videolar, gunluk, vid_an)
+    if not stiller:
+        satirlar.append("- Henuz stil etiketli yayinlanmis video yok.")
+    for stil, o in sorted(stiller.items()):
+        yeterli = min(o["izlenme_7g_n"], o["izleme_yuzdesi_n"]) >= MIN_ORNEK
+        satirlar.append(f"- Stil {stil}: {o['sayi']} video | 7 gunluk izlenme medyan {o['izlenme_7g']} "
+                        f"(n={o['izlenme_7g_n']}) | izlenme yuzdesi %{o['izleme_yuzdesi']} | ort. izlenme "
+                        f"{o['izleme_sn']} sn | abone {o['abone']}"
+                        + ("" if yeterli else "  (az veri)"))
+    if stiller and not all(min(o["izlenme_7g_n"], o["izleme_yuzdesi_n"]) >= MIN_ORNEK for o in stiller.values()):
+        satirlar.append(f"- KARAR YOK: her stilde en az {MIN_ORNEK} video icin ayni-yas izlenme + Analytics "
+                        "metrigi gerekli. 'Izlemeyi secenler' orani API'de yok, Studio'dan elle bakilmali.")
+    satirlar.append("")
+
+    satirlar.append("## Sure kovalarina gore (Analytics ortalama izlenme yuzdesi)")
     kovalar = {}
     for v in videolar:
         m = vid_an.get(v["video_id"])

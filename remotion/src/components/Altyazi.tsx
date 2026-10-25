@@ -5,7 +5,15 @@ import type {AltyaziGrubu} from '../types';
 const temizle = (w: string) => w.toLowerCase().replace(/[^a-z0-9']/g, '');
 
 // Kelime kelime "karaoke" altyazi: aktif kelime sari + buyur, anahtar kelimeler kirmizi kutuda.
-export const Altyazi: React.FC<{gruplar: AltyaziGrubu[]; anahtarlar: string[]; ust?: string}> = ({gruplar, anahtarlar, ust = '60%'}) => {
+// sade=true (yonetmen plani modu): kirmizi kutu yok, daha kucuk yazi, sag taraftaki YouTube
+// dugmelerinden uzak guvenli alanda; anahtar kelime soylenirken sicak sariyla vurgulanir.
+export const Altyazi: React.FC<{gruplar: AltyaziGrubu[]; anahtarlar: string[]; ust?: string | number; sade?: boolean; boyut?: number}> = ({
+	gruplar,
+	anahtarlar,
+	ust = '60%',
+	sade = false,
+	boyut = 118,
+}) => {
 	const frame = useCurrentFrame();
 	const {fps} = useVideoConfig();
 	const t = frame / fps;
@@ -23,15 +31,15 @@ export const Altyazi: React.FC<{gruplar: AltyaziGrubu[]; anahtarlar: string[]; u
 
 	const girisKare = Math.round(g.start * fps);
 	const giris = spring({frame: frame - girisKare, fps, config: {damping: 11, stiffness: 220, mass: 0.6}});
-	const olcek = interpolate(giris, [0, 1], [0.55, 1]);
-	const yukari = interpolate(giris, [0, 1], [40, 0]);
+	const olcek = interpolate(giris, [0, 1], [sade ? 0.85 : 0.55, 1]);
+	const yukari = interpolate(giris, [0, 1], [sade ? 18 : 40, 0]);
 
 	return (
 		<div
 			style={{
 				position: 'absolute',
-				left: 60,
-				right: 60,
+				left: sade ? 70 : 60,
+				right: sade ? 150 : 60,
 				top: ust,
 				display: 'flex',
 				flexWrap: 'wrap',
@@ -46,6 +54,27 @@ export const Altyazi: React.FC<{gruplar: AltyaziGrubu[]; anahtarlar: string[]; u
 				const simdi = t >= w.start - 0.03 && t < w.end + 0.05;
 				const ham = temizle(w.word);
 				const vurgu = anahtar.has(ham) || /\d/.test(ham);
+				if (sade) {
+					return (
+						<span
+							key={i}
+							style={{
+								fontFamily: 'Anton, Impact, sans-serif',
+								fontSize: boyut,
+								lineHeight: 1.1,
+								letterSpacing: 1,
+								textTransform: 'uppercase',
+								color: !konusuluyor ? 'rgba(255,255,255,0.5)' : vurgu || simdi ? '#ffd23f' : '#ffffff',
+								WebkitTextStroke: `${Math.round(boyut / 11)}px #000`,
+								paintOrder: 'stroke fill',
+								textShadow: '0 6px 18px rgba(0,0,0,0.9)',
+								display: 'inline-block',
+							}}
+						>
+							{w.word.replace(/[",]/g, '')}
+						</span>
+					);
+				}
 				const zipla = simdi
 					? spring({frame: frame - Math.round(w.start * fps), fps, config: {damping: 9, stiffness: 300}})
 					: 0;
