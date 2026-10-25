@@ -160,16 +160,108 @@ def icerik_kontrol(meta):
     return rapor
 
 
-def kontrol_et(video_yolu, meta, izinli_siyah=()):
-    """Tum kontroller. Donus: {'gecti': bool, 'kontroller': [...]} (UYARI gecmeyi engellemez)."""
+# ------------------------------------------------------------------ gorsel / ekran yerlesimi
+# YouTube Shorts arayuzu (1080x1920): ustte ~290 px arama/menu, altta ~440 px baslik/kanal adi,
+# sagda ~130 px begen/yorum/paylas dugmeleri. Yazilar bu alanlarin DISINDA kalmali.
+GUVENLI_UST, GUVENLI_ALT, GUVENLI_SAG = 290, 1480, 130
+MIN_ALTYAZI_PX = 64
+
+
+def _ahash(yol, boyut=8):
+    from PIL import Image
+    with Image.open(yol) as im:
+        k = im.convert("L").resize((boyut, boyut))
+    px = list(k.getdata())
+    ort = sum(px) / len(px)
+    return [p > ort for p in px]
+
+
+def gorsel_kontrol(meta, gorsel_klasoru=None):
+    """Yonetmen plani (meta['ekran_plani']) ve sahne gorselleri uzerinde otomatik kontroller.
+    Otomatik olculemeyen maddeler 'MANUEL' olarak isaretlenir: GECTI sayilmaz, yayini da engellemez."""
+    rapor = []
+
+    def ekle(ad, durum, detay):
+        rapor.append({"kontrol": ad, "durum": durum, "detay": detay})
+
+    plan = meta.get("ekran_plani") or {}
+    if not plan.get("planli"):
+        ekle("yonetmen plani", "UYARI", "plan yok (eski/yedek motor) - gorsel kontroller atlandi")
+        return rapor
+    sahneler = plan.get("sahneler") or []
+
+    # 1) Ayni gorsel videoda birden fazla kez kullanilmis mi?
+    kaynaklar = [str(s.get("src")) for s in sahneler]
+    tekrar = sorted({k for k in kaynaklar if kaynaklar.count(k) > 1})
+    ekle("sahne tekrari", "GECTI" if not tekrar else "KALDI",
+         f"{len(kaynaklar)} sahne, her gorsel bir kez" if not tekrar else f"tekrar eden gorsel: {tekrar}")
+
+    # 2) Neredeyse ayni gorseller (farkli dosya, ayni goruntu) -> uyari
+    if gorsel_klasoru and os.path.isdir(gorsel_klasoru):
+        yollar = sorted(os.path.join(gorsel_klasoru, f) for f in os.listdir(gorsel_klasoru)
+                        if f.lower().endswith((".jpg", ".png")))
+        try:
+            hs = [(os.path.basename(y), _ahash(y)) for y in yollar]
+            benzer = [(a[0], b[0]) for i, a in enumerate(hs) for b in hs[i + 1:]
+                      if sum(x != y for x, y in zip(a[1], b[1])) <= 4]
+            ekle("benzer sahne", "UYARI" if benzer else "GECTI",
+                 f"neredeyse ayni gorseller: {benzer[:3]}" if benzer else "gorseller birbirinden farkli")
+        except Exception as e:
+            ekle("benzer sahne", "MANUEL", f"olculemedi: {str(e)[:60]}")
+
+    # 3) Kamera hareketi: ayni hareket ust uste 3 kez olmamali
+    kameralar = [s.get("camera") for s in sahneler]
+    ust_uste = any(kameralar[i] == kameralar[i + 1] == kameralar[i + 2] for i in range(len(kameralar) - 2))
+    ekle("kamera cesitliligi", "UYARI" if ust_uste else "GECTI", " > ".join(map(str, kameralar)))
+
+    # 4) Ekran yazilari: kanca kisa mi, baslik/anlatim/sahne yazilari birbirini tekrar ediyor mu
+    sorunlar = plan.get("yazi_sorunlari") or []
+    yazili = [s for s in sahneler if s.get("text")]
+    ekle("ekran yazisi tekrari", "GECTI" if not sorunlar else "KALDI",
+         f"kanca: '{plan.get('kanca') or '-'}', yazili sahne: {len(yazili)}/{len(sahneler)}" if not sorunlar
+         else "; ".join(sorunlar))
+    ekle("baslik bandi", "GECTI" if not plan.get("band") else "UYARI",
+         "kirmizi bant kapali" if not plan.get("band") else "kirmizi bant acik")
+    asiri = len(yazili) > max(2, len(sahneler) // 3)
+    ekle("yazi yogunlugu", "UYARI" if asiri else "GECTI",
+         f"{len(yazili)} sahnede ekran yazisi" + (" (fazla)" if asiri else ""))
+
+    # 5) Guvenli alan: yerlesim degerlerinden hesaplanir (render edilmis kare olculmez)
+    ust = plan.get("altyazi_ust") or 0
+    boyut = plan.get("altyazi_boyut") or 0
+    alt = ust + 2 * boyut * 1.1 if ust else 0
+    guvenli = bool(ust) and ust >= GUVENLI_UST and alt <= GUVENLI_ALT and boyut >= MIN_ALTYAZI_PX
+    ekle("altyazi guvenli alan", "GECTI" if guvenli else "KALDI",
+         f"altyazi {ust}-{int(alt)} px, {boyut} px yazi, sag bosluk 150 px (yerlesim degerlerinden)")
+
+    # 6) Gorsel icerik on-taramasi (Gemini goruntu modeli; kesin degil -> en fazla UYARI)
+    tarama = meta.get("gorsel_tarama") or {}
+    if tarama.get("yapildi"):
+        bulgular = tarama.get("bulgular") or []
+        ekle("gorsel on-tarama", "UYARI" if bulgular else "MANUEL",
+             ("olasi sorun: " + "; ".join(bulgular[:4])) if bulgular
+             else "otomatik taramada sorun bulunmadi (yine de insan gozuyle bakilmali)")
+    else:
+        ekle("gorsel on-tarama", "MANUEL", tarama.get("neden") or "yapilmadi")
+    # Guvenilir olarak otomatik olculemeyenler: dogrulanmis gibi gosterilmez
+    ekle("bozuk el/yuz/nesne", "MANUEL", "insan gozuyle kontrol edilmeli (on-tarama ipucu verir)")
+    ekle("gorsel-ses uyumu", "MANUEL", "sahneler anlatim parcalarina gore zamanlandi; anlam uyumu insan kontrolu")
+    return rapor
+
+
+def kontrol_et(video_yolu, meta, izinli_siyah=(), gorsel_klasoru=None):
+    """Tum kontroller. Donus: {'gecti': bool, 'kontroller': [...]}.
+    UYARI ve MANUEL gecmeyi engellemez; MANUEL = otomatik dogrulanamadi, insan bakmali."""
     kontroller = teknik_kontrol(video_yolu, izinli_siyah) + icerik_kontrol(meta)
-    gecti = all(k["durum"] in ("GECTI", "UYARI") for k in kontroller)
+    if meta.get("ekran_plani") is not None:
+        kontroller += gorsel_kontrol(meta, gorsel_klasoru)
+    gecti = all(k["durum"] in ("GECTI", "UYARI", "MANUEL") for k in kontroller)
     return {"gecti": gecti, "kontroller": kontroller}
 
 
 def ozet_yazdir(sonuc):
     for k in sonuc["kontroller"]:
-        isaret = {"GECTI": "OK ", "UYARI": "!! ", "KALDI": "XX "}[k["durum"]]
+        isaret = {"GECTI": "OK ", "UYARI": "!! ", "KALDI": "XX ", "MANUEL": "?? "}[k["durum"]]
         print(f"   {isaret} {k['kontrol']:<24} {k['detay']}")
     print("   SONUC:", "GECTI" if sonuc["gecti"] else "KALDI (yayinlanmayacak)")
 

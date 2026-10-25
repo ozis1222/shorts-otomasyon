@@ -834,6 +834,7 @@ def _prompt_kur(gecmis, performans, viraller, reddedilenler, aile="gercek_vaka")
     # Gloria Ramirez, L-8, McCabe...) tekrar oneriyor, 8 denemenin hepsi TEKRAR diye reddedilip kosu iptal oluyordu.
     onceki = "\n".join("- " + (k.get("topic") or "") for k in gecmis if k.get("topic"))
     onceki_baslik = "\n".join("- " + k["title"] for k in gecmis[-40:] if k.get("title"))
+    onceki_kanca = ", ".join(k["kanca_yazisi"] for k in gecmis[-40:] if k.get("kanca_yazisi")) or "(none yet)"
     son_turler = _son_farkli_turler(gecmis, 4)
     tur_blok = ", ".join(son_turler) if son_turler else "(none yet)"
 
@@ -965,8 +966,9 @@ Pick a genuinely FRESH, SPECIFIC idea that fits this content family. Vary countr
 - STRICTLY FORBIDDEN: flowers, insects, cute animals, happy people, weddings, food, bright sunny
   nature, modern city life, corporate stock.
 
---- STICKMAN STORYBOARD (the video is a 2D TALKING-STICKMAN cartoon: thick black outlines, big round
-heads, flat colors - like popular stickman explainer channels; it is drawn in code, NOT by an AI artist) ---
+--- STORYBOARD (each scene becomes ONE illustrated shot: a polished 2D cinematic mystery illustration with
+clean ink outlines, deep navy/black shadows and one controlled warm yellow light; the people are drawn
+from "image_prompt", so it must describe them exactly) ---
 - "cast": how the people in the story look. Key "subject" = the central real person of the case;
   optionally "other" = a second person (police, pilot, witness...). The "narrator" is fixed, do not add it.
   Each look: {{"hair": one of none|short|messy|long|bun|cap|hat, "hair_color": "#RRGGBB",
@@ -991,13 +993,37 @@ heads, flat colors - like popular stickman explainer channels; it is drawn in co
     close-ups only for the 1-3 beats where the object itself is the shocking detail.
     The image_prompt NEVER mentions a narrator, presenter or stickman: the "narrator" role exists only in
     "characters". For narrator beats, draw the story's own person or the key object instead.
+  DIRECTOR'S SHOT PLAN - every scene ALSO has these fields (they drive camera, timing, text and sound):
+    "narration": the EXACT words of the script this picture covers, copied verbatim (consecutive scenes
+       together cover the whole script in order; one scene = one beat of 1-3 sentences),
+    "purpose": why this shot exists in 3-8 words (hook / establish place / reveal clue / build dread / twist),
+    "focus": the ONE thing the eye must land on (the clock face with no pendulum, her trembling hand),
+    "emotion": the person's feeling shown by face AND body (frozen, leaning away, eyes locked on the object),
+    "shot": one of extreme_close|close|medium|wide,
+    "move": one of push_in|pull_out|pan_left|pan_right|tilt_up|tilt_down|static - chosen for the beat:
+       push_in = rising dread / reveal, pull_out = isolation / aftermath, pan = searching / following a
+       gaze, tilt = height or discovery, static = shock beat or a hard cut. Never the same move 3 times in a row.
+    "light": one of steady|flicker|dim_down|reveal|lightning,
+    "on_screen_text": "" for almost every scene. ONLY when a word on screen adds what the picture cannot
+       (a date, a place, a number) give 1-4 words. Never repeat the narration or the title.
+    "continuity": what carries over from the previous shot (same coat, clock now on the left, same hallway),
+    "sfx": one of none|boom|hit|creak|knock|static|heartbeat|whoosh.
+  The picture must ADD something the narration does not say (a detail, a reaction, a scale), not just
+  illustrate the sentence. Vary shot sizes: open wide or close, never three wides in a row; the scene where
+  the key object is described is a close / extreme_close of that object.
+- "hook_text": 2-5 WORDS, UPPERCASE, shown ONLY on the first frame. A concrete contradiction that makes the
+  viewer stay (pattern examples only, write your own: "IT HAD NO PENDULUM", "THE DOOR WAS NAILED SHUT"). It must differ from the title, from the
+  thumbnail_text and from the first spoken sentence. Never reuse a hook_text from an earlier video.
+  Earlier hook_texts (do not reuse or paraphrase): {onceki_kanca}
+- "look_bible": one sentence fixing each person's appearance (age, face, hair, clothing colors) and the
+  key place; every image_prompt must reuse these exact look phrases so people never change between shots.
   The FIRST character of a scene is the one whose mouth talks. Scene 1 = the hook: "narrator", shocked,
   pointing at the key prop. Reenact the story with "subject"; return to "narrator" for the twist/ending.
   Pick the prop that IS the beat (the stopped clock, the empty car, the letter). Vary backgrounds.
 - "case_card": the REAL case identity for an on-screen dossier card: {{"name": "...", "year": "1900",
   "place": "City/Region, Country"}}. Short values (name <= 32 chars, place <= 32 chars).
-- "keywords": 3 to 6 single words FROM THE SCRIPT that should flash in red on screen (numbers, the key
-  object, the shocking verb).
+- "keywords": 3 to 6 single words FROM THE SCRIPT that carry the story (numbers, the key object, the
+  shocking verb); they are highlighted in the captions.
 
 Return ONLY valid JSON (no markdown, no ```), EXACTLY this shape:
 {{
@@ -1011,7 +1037,12 @@ Return ONLY valid JSON (no markdown, no ```), EXACTLY this shape:
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"],
   "visual_queries": ["query1", "query2", "query3", "query4", "query5", "query6", "query7", "query8", "query9"],
   "cast": {{"subject": {{"hair": "hat", "hair_color": "#2b2b2b", "shirt": "#5d4037", "skin": "#e8b07a", "glasses": false, "mustache": true, "beard": false}}}},
-  "scenes": [{{"background": "night", "prop": "lighthouse", "characters": [{{"role": "narrator", "expression": "shocked", "pose": "point"}}], "label": ""}}],
+  "hook_text": "2-5 WORD CONTRADICTION",
+  "look_bible": "Elena: woman in her 30s, pale oval face, long straight black hair, dark green wool coat; hallway: narrow stone cottage hall, one oil lamp",
+  "scenes": [{{"background": "night", "prop": "clock", "characters": [{{"role": "subject", "expression": "scared", "pose": "idle"}}], "label": "",
+              "place": "...", "key_object": "...", "image_prompt": "...", "narration": "exact script words",
+              "purpose": "...", "focus": "...", "emotion": "...", "shot": "close", "move": "push_in",
+              "light": "flicker", "on_screen_text": "", "continuity": "...", "sfx": "none"}}],
   "case_card": {{"name": "real case name", "year": "YYYY", "place": "place, country"}},
   "keywords": ["word1", "word2", "word3"]
 }}
@@ -2270,6 +2301,25 @@ def _ses_efektleri_uret(ff, dur, ambient=True):
             "-ar", "44100", "-ac", "2"], os.path.join(REMOTION_RUN, "pop.wav"))
     except Exception as e:
         print("  (ses efekti uretilemedi:", str(e)[:80], ")")
+    try:   # sahne planindaki ozel efektler (yonetmen plani 'sfx' alani)
+        sfx["creak"] = _ffmpeg_ses(ff, [
+            "-f", "lavfi", "-i", "sine=frequency=140:duration=1.1",
+            "-af", "vibrato=f=7:d=0.9,lowpass=f=900,afade=t=in:d=0.2,afade=t=out:st=0.6:d=0.5,volume=0.9",
+            "-ar", "44100", "-ac", "2"], os.path.join(REMOTION_RUN, "creak.wav"))
+        sfx["knock"] = _ffmpeg_ses(ff, [
+            "-f", "lavfi", "-i", "anoisesrc=color=brown:amplitude=0.9:duration=1.2",
+            "-af", "lowpass=f=260,volume='if(lt(mod(t,0.38),0.07),2.6,0)':eval=frame,afade=t=out:st=1.0:d=0.2",
+            "-ar", "44100", "-ac", "2"], os.path.join(REMOTION_RUN, "knock.wav"))
+        sfx["static"] = _ffmpeg_ses(ff, [
+            "-f", "lavfi", "-i", "anoisesrc=color=white:amplitude=0.5:duration=0.9",
+            "-af", "highpass=f=1200,lowpass=f=6000,tremolo=f=23:d=0.7,afade=t=out:st=0.6:d=0.3,volume=0.7",
+            "-ar", "44100", "-ac", "2"], os.path.join(REMOTION_RUN, "static.wav"))
+        sfx["heartbeat"] = _ffmpeg_ses(ff, [
+            "-f", "lavfi", "-i", "sine=frequency=52:duration=1.6",
+            "-af", "volume='if(lt(mod(t,0.8),0.09)+between(mod(t,0.8),0.2,0.27),2.8,0)':eval=frame,lowpass=f=150",
+            "-ar", "44100", "-ac", "2"], os.path.join(REMOTION_RUN, "heartbeat.wav"))
+    except Exception as e:
+        print("  (sahne efekti uretilemedi:", str(e)[:80], ")")
     rel = lambda yol: ("run/" + os.path.basename(yol)) if yol else None
     return rel(amb), {k: rel(v) for k, v in sfx.items()}
 
@@ -2306,6 +2356,113 @@ def _bulanik_kopya(yol):
         return "run/" + os.path.basename(bg)
     except Exception:
         return None
+
+
+_PLAN_KAMERA = {"push_in": "pushIn", "pull_out": "pullOut", "pan_left": "panLeft", "pan_right": "panRight",
+                "tilt_up": "tiltUp", "tilt_down": "tiltDown", "static": "static"}
+_PLAN_ISIK = {"steady", "flicker", "dim_down", "reveal", "lightning"}
+_ZAMAN_ATLAMA = re.compile(r"\b(later|next (?:day|night|morning)|years?|weeks?|months?|that night|morning|hours? later)\b", re.I)
+_MIN_SAHNE_SN = 1.4
+
+
+def _jeton(w):
+    return re.sub(r"[^a-z0-9']", "", str(w).lower())
+
+
+def anlatim_baslangiclari(planlar, words):
+    """Her sahnenin 'narration' parcasinin seslendirmede BASLADIGI kelime indeksini bulur.
+    Once beklenen konum (onceki parcalarin kelime sayisi) civarinda ilk 3 kelimeyi arar; bulamazsa
+    beklenen konumu kullanir. Donus: artan indeks listesi (ilk sahne her zaman 0)."""
+    jetonlar = [_jeton(w["word"]) for w in words]
+    n = len(jetonlar)
+    sonuc, beklenen, son = [], 0, -1
+    for k, plan in enumerate(planlar):
+        parca = [_jeton(t) for t in str((plan or {}).get("narration") or "").split()]
+        parca = [t for t in parca if t]
+        if k == 0:
+            idx = 0
+        else:
+            idx = None
+            bas3 = parca[:3]
+            if bas3:
+                for d in range(0, 14):
+                    for aday in (beklenen + d, beklenen - d):
+                        if son < aday < n - 1 and jetonlar[aday:aday + len(bas3)] == bas3:
+                            idx = aday
+                            break
+                    if idx is not None:
+                        break
+            if idx is None:
+                idx = min(max(son + 1, beklenen), n - 1) if parca else None
+        if idx is None:   # anlatim parcasi verilmemis: esit paylastir
+            idx = min(n - 1, max(son + 1, round(n * k / max(1, len(planlar)))))
+        sonuc.append(idx)
+        son = idx
+        beklenen = idx + max(1, len(parca))
+    return sonuc
+
+
+def planli_sahneler(eslesme, words, dur, sfx_dosyalari=None):
+    """Yonetmen planindan Remotion sahneleri: her gorsel BIR kez, kendi anlatim parcasinin
+    basladigi kelimede acilir; kamera/isik/gecis/yazi/ses plandan gelir."""
+    sfx_dosyalari = sfx_dosyalari or {}
+    planlar = [p for _, p in eslesme]
+    baslar = anlatim_baslangiclari(planlar, words)
+    zamanlar = [0.0] + [max(0.0, words[i]["start"] - 0.08) for i in baslar[1:]]
+    # cok kisa kalan sahneyi bir oncekiyle birlestir (gorsel kaybolmasin diye yerini sonrakine verir)
+    secilen = []
+    for k, t in enumerate(zamanlar):
+        if secilen and t - secilen[-1][1] < _MIN_SAHNE_SN:
+            continue
+        if t > dur - 1.0 and k > 0:
+            continue
+        secilen.append((k, t))
+    sahneler, onceki_kamera = [], []
+    for j, (k, t) in enumerate(secilen):
+        yol, plan = eslesme[k]
+        bitis = secilen[j + 1][1] if j + 1 < len(secilen) else dur
+        kamera = _PLAN_KAMERA.get(str(plan.get("move") or "").lower())
+        if not kamera:
+            kamera = "pushIn" if j == 0 else ("static" if str(plan.get("shot")) == "extreme_close" else
+                                               ["pushIn", "panLeft", "pullOut", "panRight", "tiltUp"][j % 5])
+        if onceki_kamera[-2:] == [kamera, kamera]:   # ayni hareket ust uste 3 kez olmasin
+            kamera = "static" if kamera != "static" else "pushIn"
+        onceki_kamera.append(kamera)
+        isik = str(plan.get("light") or "steady").lower()
+        devam = " ".join(str(plan.get(a) or "") for a in ("continuity", "narration"))
+        gecis = "fade" if j > 0 and _ZAMAN_ATLAMA.search(devam) else "cut"
+        yazi = re.sub(r"\s+", " ", str(plan.get("on_screen_text") or "")).strip().upper()
+        sahneler.append({
+            "src": yol, "kind": "image", "start": round(t, 3), "end": round(bitis, 3),
+            "camera": kamera, "transition": gecis,
+            "light": isik if isik in _PLAN_ISIK else "steady",
+            "text": yazi if 0 < len(yazi.split()) <= 4 else "",
+            "sfx": sfx_dosyalari.get(str(plan.get("sfx") or "").lower()),
+        })
+    return sahneler
+
+
+def ekran_yazilari_cakisma(baslik, kanca, sahne_yazilari, script):
+    """Baslik, kanca, sahne yazilari ve anlatim ayni cumleyi tekrar ediyor mu? Sorun listesi doner."""
+    norm = lambda m: " ".join(_jeton(t) for t in str(m or "").split() if _jeton(t) and _jeton(t) != "shorts")
+    sorunlar = []
+    k = norm(kanca)
+    if k:
+        if k == norm(baslik) or (len(k) > 8 and k in norm(baslik)):
+            sorunlar.append("kanca yazisi basligi tekrar ediyor")
+        if len(k.split()) >= 3 and k in norm(_ilk_cumle(script)):
+            sorunlar.append("kanca yazisi ilk anlatim cumlesini tekrar ediyor")
+        if len(k.split()) > 6:
+            sorunlar.append("kanca yazisi 6 kelimeden uzun")
+    gorulen = set()
+    for y in sahne_yazilari:
+        n = norm(y)
+        if not n:
+            continue
+        if n in gorulen or n == k:
+            sorunlar.append(f"ekran yazisi tekrar ediyor: {y}")
+        gorulen.add(n)
+    return sorunlar
 
 
 def remotion_olustur(words, medya, data, thumb_yazi, out_path, cizgi=False):
@@ -2350,12 +2507,33 @@ def remotion_olustur(words, medya, data, thumb_yazi, out_path, cizgi=False):
                          "transition": _GECISLER[i % len(_GECISLER)]})
 
     logo = None
-    if os.path.exists(LOGO_PATH):
+    if os.path.exists(LOGO_PATH) and not cizgi:   # planli modda logo yok: alt sag kose YouTube dugmelerinin altinda kaliyordu
         shutil.copyfile(LOGO_PATH, os.path.join(REMOTION_RUN, "logo.png"))
         logo = "run/logo.png"
 
     ambient, sfx = _ses_efektleri_uret(ff, dur) if AMBIENT_SES else (None, {"boom": None, "whoosh": None, "hit": None})
     anahtar = [str(k) for k in (data.get("keywords") or [])][:6] if isinstance(data, dict) else []
+
+    # Yonetmen plani: her gorsel kendi anlatim parcasinda, BIR kez (dongu ile tekrar yok)
+    eslesme = (data.get("_sahne_medya") or []) if isinstance(data, dict) and cizgi else []
+    planli = len(eslesme) >= ANIM_MIN_GORSEL
+    if planli:
+        kopya = []
+        for i, (yol, plan) in enumerate(eslesme):
+            ad = f"plan_{i:02d}" + os.path.splitext(yol)[1].lower()
+            shutil.copyfile(yol, os.path.join(REMOTION_RUN, ad))
+            kopya.append(("run/" + ad, plan))
+        sfx_plan = {k: v for k, v in sfx.items() if v and k in ("boom", "hit", "whoosh", "creak", "knock", "static", "heartbeat")}
+        sahneler = planli_sahneler(kopya, words, dur, sfx_plan)
+        for sh in sahneler:
+            sh["bg"] = _bulanik_kopya(os.path.join(REMOTION_RUN, os.path.basename(sh["src"])))
+    kanca = re.sub(r"\s+", " ", str((data or {}).get("hook_text") or "")).strip().upper() if planli else ""
+    if kanca and ekran_yazilari_cakisma((data or {}).get("title", ""), kanca, [], (data or {}).get("script", "")):
+        kanca = ""        # baslik/anlatimi tekrar eden kanca gosterilmez
+    gercek = isinstance(data, dict) and data.get("aile", "gercek_vaka") == "gercek_vaka"
+    if isinstance(data, dict):
+        data["_ekran_plani"] = {"planli": planli, "kanca": kanca, "sahneler": sahneler,
+                                "altyazi_ust": 1150 if cizgi else None, "altyazi_boyut": 80 if cizgi else 118}
 
     props = {
         "duration": round(dur, 3),
@@ -2364,13 +2542,16 @@ def remotion_olustur(words, medya, data, thumb_yazi, out_path, cizgi=False):
         "sfx": sfx,
         "captions": captions,
         "scenes": sahneler,
-        "caseCard": _dosya_karti(data, words),
+        "caseCard": _dosya_karti(data, words) if (gercek or not planli) else None,
         "headline": (thumb_yazi or "")[:40],
         "keywords": anahtar,
         "logo": logo,
-        "subscribeAt": round(dur * 0.45, 2),
-        "watchNextAt": round(max(dur - 2.6, dur * 0.75), 2) if dur > 12 else 0,
+        # Ekran ortasindaki SUBSCRIBE / WATCH NEXT haplari planli modda yok (ana nesneyi kapatiyordu)
+        "subscribeAt": 0 if planli else round(dur * 0.45, 2),
+        "watchNextAt": 0 if planli else (round(max(dur - 2.6, dur * 0.75), 2) if dur > 12 else 0),
         "cizgi": bool(cizgi),
+        "hook": kanca,
+        "band": False if cizgi else True,
     }
     props_yol = os.path.join(REMOTION_RUN, "props.json")
     with open(props_yol, "w", encoding="utf-8") as f:
@@ -2700,9 +2881,29 @@ def stickman_olustur(words, data, thumb_yazi, out_path, thumb_path=None):
 #      Ucretsiz: gunluk 10.000 neuron (~100+ dikey gorsel). Anahtar yoksa / hata verirse
 #      stickman (kodla cizim) yedegine dusulur, video yine uretilir.
 # =========================================================
-_CF_STIL = ("2D cartoon illustration, bold thick black outlines, flat bright colors with simple soft shading, "
-            "simple round-headed cartoon people with dot eyes, objects never have faces, webcomic explainer animation style, "
-            "clean simple background, vertical 9:16 composition, no text, no letters, no watermark")
+# Gorsel yonetmenlik. A = mevcut cizgi dilinin iyilestirilmisi (varsayilan), B = daha sinematik isik,
+# daha yakin ana nesne. Ikisi de: tek net odak, koyu lacivert/siyah golge + kontrollu sicak sari isik.
+_CF_ORTAK = ("one clear focal subject, uncluttered composition with depth (foreground, subject, background), "
+             "deep navy blue and black shadows, a single controlled warm yellow light source, "
+             "consistent character design, natural hands with five fingers, objects never have faces, "
+             "vertical 9:16 composition, no text, no letters, no captions, no watermark, no logo")
+_CF_STILLER = {
+    "A": ("polished 2D cartoon illustration, clean bold black ink outlines, rich flat colors with soft cel shading, "
+          "expressive faces and clear body language, cinematic mystery mood, " + _CF_ORTAK),
+    "B": ("cinematic 2D illustrated film still, refined ink outlines, painterly low-key lighting with strong "
+          "chiaroscuro, moody atmosphere with light haze, shallow depth of field, the key object large and close "
+          "in frame, subtle film grain, " + _CF_ORTAK),
+}
+GORSEL_STIL = (os.environ.get("GORSEL_STIL") or "A").strip().upper()
+if GORSEL_STIL == "AB":
+    # Deney modu (yalnizca kullanici onayiyla acilir): stiller gune gore donusumlu, her hikaye TEK stille
+    # yayinlanir; ayni video iki kez yuklenmez. Olcum: kanal_analiz.py --haftalik "Gorsel stil A/B".
+    GORSEL_STIL = "AB"[datetime.date.today().toordinal() % 2]
+if GORSEL_STIL not in _CF_STILLER:
+    GORSEL_STIL = "A"
+_CF_STIL = _CF_STILLER[GORSEL_STIL]
+_CF_PLAN = {"extreme_close": "extreme close-up shot", "close": "close-up shot",
+            "medium": "medium shot", "wide": "wide establishing shot"}
 
 
 def cf_hazir():
@@ -2749,11 +2950,11 @@ def _cf_istek(model, metin, tohum):
     return 200, sonuc.get("image"), "" if sonuc.get("image") else str(sonuc)[:160]
 
 
-def cf_gorsel(prompt, hedef, tohum):
+def cf_gorsel(prompt, hedef, tohum, stil=None):
     """Tek gorsel uretir. Basariliysa True. Gecici hatada bekler; ana model olmazsa yedek modele gecer."""
     import base64
     import time
-    metin = f"{prompt}, {_CF_STIL}"[:2000]
+    metin = f"{prompt}, {_CF_STILLER.get(stil or GORSEL_STIL, _CF_STIL)}"[:2000]
     for model in dict.fromkeys([CF_MODEL, CF_YEDEK_MODEL]):
         for deneme in range(3):
             try:
@@ -2778,29 +2979,51 @@ def cf_gorsel(prompt, hedef, tohum):
 _ANLATICI_RE = re.compile(r"\b(?:an?|the)\s+(?:stick ?man\s+)?(?:narrator|presenter|stick ?man)\b", re.I)
 
 
-def flux_sahneleri(data, sorgular):
-    """Gemini'nin sahne tariflerinden (image_prompt) gorselleri uretir -> [(yol, 'foto'), ...]"""
-    os.makedirs(MEDYA_KLASORU, exist_ok=True)
-    for eski in os.listdir(MEDYA_KLASORU):
+def sahne_promptu(sahne, look_bible=""):
+    """Sahne planindan FLUX metni: plan olcegi + sahne tarifi + sabit karakter/mekan tarifi."""
+    tarif = _ANLATICI_RE.sub("a frightened witness", str(sahne.get("image_prompt") or "").strip())
+    if not tarif:
+        return ""
+    plan = _CF_PLAN.get(str(sahne.get("shot") or "").lower(), "")
+    parca = [plan, tarif]
+    if sahne.get("focus"):
+        parca.append("focus on " + str(sahne["focus"])[:120])
+    if look_bible:
+        parca.append("consistent look: " + str(look_bible)[:300])
+    return ", ".join(p for p in parca if p)
+
+
+def flux_sahneleri(data, sorgular, stil=None, klasor=None):
+    """Gemini'nin sahne planindan gorselleri uretir -> [(yol, 'foto'), ...]
+    Ayrica data['_sahne_medya'] = [(yol, sahne_plani), ...]: hangi gorselin hangi anlatim
+    parcasina ait oldugu (kurgu bu eslemeyle yapilir, gorseller dongu ile tekrarlanmaz)."""
+    klasor = klasor or MEDYA_KLASORU
+    os.makedirs(klasor, exist_ok=True)
+    for eski in os.listdir(klasor):
         try:
-            os.remove(os.path.join(MEDYA_KLASORU, eski))
+            os.remove(os.path.join(klasor, eski))
         except OSError:
             pass
     sahneler = [s for s in (data.get("scenes") or []) if isinstance(s, dict)] if isinstance(data, dict) else []
-    tarifler = [str(s.get("image_prompt") or "").strip() for s in sahneler]
-    tarifler = [t for t in tarifler if t] or [str(q) for q in (data.get("art_prompts") or sorgular or [])]
-    # Anlatici/stickman figuru FLUX gorsellerine girmesin (hikayenin kendi kisisi cizilsin)
-    tarifler = [_ANLATICI_RE.sub("a frightened witness", t) for t in tarifler]
+    look = str(data.get("look_bible") or "") if isinstance(data, dict) else ""
+    planli = [(sahne_promptu(s, look), s) for s in sahneler]
+    planli = [(t, s) for t, s in planli if t]
+    if not planli:   # eski yanit bicimi: yalnizca sorgu listesi
+        planli = [(_ANLATICI_RE.sub("a frightened witness", str(q)), {})
+                  for q in (data.get("art_prompts") or sorgular or [])]
     tohum = random.randint(1, 10_000_000)
-    medya = []
-    for i, tarif in enumerate(tarifler[:10]):
-        hedef = os.path.join(MEDYA_KLASORU, f"flux_{i:02d}.jpg")
-        print(f"  Sahne [{i+1}/{min(len(tarifler), 10)}]: {tarif[:100]}")
+    medya, eslesme = [], []
+    for i, (tarif, sahne) in enumerate(planli[:10]):
+        hedef = os.path.join(klasor, f"flux_{i:02d}.jpg")
+        print(f"  Sahne [{i+1}/{min(len(planli), 10)}] {sahne.get('shot', '')}/{sahne.get('move', '')}: {tarif[:90]}")
         # ayni tohum ailesi: karakterlerin cizimi sahneler arasi daha tutarli kalir
-        if cf_gorsel(tarif, hedef, tohum + i):
+        if cf_gorsel(tarif, hedef, tohum + i, stil):
             medya.append((hedef, "foto"))
+            eslesme.append((hedef, sahne))
         else:
-            print("    -> cizilemedi")
+            print("    -> cizilemedi (bu anlatim parcasi komsu sahneye eklenir)")
+    if isinstance(data, dict):
+        data["_sahne_medya"] = eslesme
     print(f"  Toplam {len(medya)} FLUX sahnesi hazir.")
     return medya
 
@@ -3089,8 +3312,65 @@ def aciklama_son_hali(aciklama, aile, kaynak, motor):
     return "\n\n".join(s for s in satirlar if s)
 
 
+def gorsel_on_tarama(data):
+    """Sahne gorsellerini Gemini goruntu modeline gosterir: gorselde yazi/harf, bozuk el-yuz-nesne,
+    anlatimla uyumsuzluk var mi? Ucretsiz katman, tek istek. Sonuc KESIN DEGILDIR: yalnizca uyari uretir.
+    Donus: {'yapildi': bool, 'bulgular': [...], 'neden': str}"""
+    eslesme = (data or {}).get("_sahne_medya") or []
+    if not eslesme or not GEMINI_API_KEY or os.environ.get("GORSEL_TARAMA", "1") == "0":
+        return {"yapildi": False, "bulgular": [], "neden": "tarama kapali ya da gorsel yok"}
+    try:
+        import io
+        from google.genai import types
+        from PIL import Image
+        parcalar = [(
+            "You are a strict visual QC reviewer for a vertical illustrated story video. For EACH numbered "
+            "image check: (a) any visible text, letters, numbers or watermark inside the picture; (b) broken "
+            "anatomy (extra/missing fingers, melted or duplicated faces, twisted limbs) or broken objects; "
+            "(c) does the picture plausibly show the narration line given for it; (d) does the main character "
+            "look consistent with this description: " + str(data.get("look_bible") or "-")[:300] + ". "
+            'Answer ONLY JSON: {"images": [{"i": 1, "text": false, "anatomy": false, "matches": true, '
+            '"consistent": true, "note": "max 12 words"}]}')]
+        for i, (yol, plan) in enumerate(eslesme[:10], 1):
+            with Image.open(yol) as im:
+                k = im.convert("RGB")
+                k.thumbnail((432, 768))
+                tampon = io.BytesIO()
+                k.save(tampon, "JPEG", quality=80)
+            parcalar.append(f"Image {i}. Narration: {str(plan.get('narration') or '')[:200]}")
+            parcalar.append(types.Part.from_bytes(data=tampon.getvalue(), mime_type="image/jpeg"))
+        sonuc = _gemini_cagir(parcalar)
+        bulgular = []
+        for g in (sonuc.get("images") or []):
+            if not isinstance(g, dict):
+                continue
+            sorun = [ad for ad, kotu in (("gorselde yazi", g.get("text")), ("bozuk anatomi/nesne", g.get("anatomy")),
+                                          ("anlatimla uyumsuz", g.get("matches") is False),
+                                          ("karakter tutarsiz", g.get("consistent") is False)) if kotu]
+            if sorun:
+                bulgular.append(f"sahne {g.get('i')}: {', '.join(sorun)} ({str(g.get('note') or '')[:60]})")
+        print(f"      Gorsel on-tarama: {len(bulgular)} olasi sorun" + (" -> " + " | ".join(bulgular[:3]) if bulgular else ""))
+        return {"yapildi": True, "bulgular": bulgular, "neden": ""}
+    except Exception as e:
+        print("      (gorsel on-tarama yapilamadi:", str(e)[:120], ")")
+        return {"yapildi": False, "bulgular": [], "neden": "tarama hatasi: " + str(e)[:80]}
+
+
+def _ekran_plani_ozeti(data, baslik, script):
+    """meta.json'a yazilacak yonetmen plani ozeti + ekran yazisi cakisma kontrolu."""
+    plan = dict((data or {}).get("_ekran_plani") or {})
+    if not plan:
+        return None
+    sahneler = plan.get("sahneler") or []
+    plan["sahneler"] = [{k: (os.path.basename(v) if k in ("src", "bg", "sfx") and v else v)
+                         for k, v in sh.items()} for sh in sahneler]
+    plan["band"] = False
+    plan["yazi_sorunlari"] = ekran_yazilari_cakisma(baslik, plan.get("kanca"), [sh.get("text") for sh in sahneler], script)
+    return plan
+
+
 def yayin_paketi_hazirla(baslik, aciklama, etiketler, thumb, aile, konu, topic_type, script, kaynak, motor,
-                         sahneler, notlar):
+                         sahneler, notlar, data=None):
     import shutil
     import uuid
     import kalite_kontrol as kk
@@ -3119,9 +3399,26 @@ def yayin_paketi_hazirla(baslik, aciklama, etiketler, thumb, aile, konu, topic_t
         "medya_kaynagi": medya_kaynagi + ["edge-tts", "sentetik-ses"],
         "maliyet_usd": 0.0,   # tum servisler ucretsiz katmanda
         "uretim_notlari": notlar,
+        "gorsel_stil": GORSEL_STIL if motor == "cloudflare-flux" else "",
+        "gorsel_sayisi": len((data or {}).get("_sahne_medya") or []),
+        "kanca_yazisi": ((data or {}).get("_ekran_plani") or {}).get("kanca", ""),
+        "look_bible": (data or {}).get("look_bible", ""),
+        "sahne_plani": [{k: sh.get(k) for k in ("narration", "purpose", "focus", "emotion", "shot", "move", "light",
+                                                 "on_screen_text", "continuity", "sfx")}
+                        for sh in ((data or {}).get("scenes") or []) if isinstance(sh, dict)],
     }
+    gorsel_klasoru = None
+    if motor == "cloudflare-flux" and data is not None:
+        meta["ekran_plani"] = _ekran_plani_ozeti(data, baslik, script)
+        meta["gorsel_tarama"] = gorsel_on_tarama(data)
+        # Sahne gorselleri pakete: inceleme ve A/B karsilastirmasi icin
+        gorsel_klasoru = os.path.join(PAKET_KLASORU, "sahneler")
+        os.makedirs(gorsel_klasoru, exist_ok=True)
+        for yol, _ in (data.get("_sahne_medya") or []):
+            if os.path.exists(yol):
+                shutil.copyfile(yol, os.path.join(gorsel_klasoru, os.path.basename(yol)))
     print("[QC] Kalite + uygunluk kontrolu:")
-    sonuc = kk.kontrol_et(video, meta)
+    sonuc = kk.kontrol_et(video, meta, gorsel_klasoru=gorsel_klasoru)
     kk.ozet_yazdir(sonuc)
     meta["kalite"] = sonuc
     meta["sure_sn"] = round(kk.video_bilgisi(video)["sure"] or 0, 2) if os.path.exists(video) else 0
@@ -3130,7 +3427,7 @@ def yayin_paketi_hazirla(baslik, aciklama, etiketler, thumb, aile, konu, topic_t
     video_kaydi_ekle({
         "paket_id": paket_id, "olusturma": meta["olusturma"], "aile": aile, "konu": konu,
         "topic_type": topic_type, "baslik": baslik, "sure_sn": meta["sure_sn"],
-        "gorsel_motoru": motor, "maliyet_usd": 0.0, "kalite_gecti": sonuc["gecti"],
+        "gorsel_motoru": motor, "gorsel_stil": meta["gorsel_stil"], "maliyet_usd": 0.0, "kalite_gecti": sonuc["gecti"],
         "kalite_hatalari": [k["kontrol"] for k in sonuc["kontroller"] if k["durum"] == "KALDI"],
         "uretim_notlari": notlar, "kaynak_url": kaynak.get("url", ""),
         "durum": "onay_bekliyor" if sonuc["gecti"] else "kalite_reddi",
@@ -3266,7 +3563,7 @@ def main():
         baslik=baslik, aciklama=aciklama, etiketler=etiket_lst, thumb=thumb, aile=aile, konu=konu,
         topic_type=(data.get("topic_type") or "").strip(), script=script, kaynak=kaynak, motor=motor,
         sahneler=[s.get("image_prompt", "") for s in (data.get("scenes") or []) if isinstance(s, dict)],
-        notlar=uretim_notlari)
+        notlar=uretim_notlari, data=data)
     gecti = paket["meta"]["kalite"]["gecti"]
 
     # YouTube: yalnizca acikca istenmisse (UPLOAD_TO_YOUTUBE=1) VE kalite kontrolu gectiyse.
@@ -3291,6 +3588,8 @@ def main():
             "topic_type": (data.get("topic_type") or "").strip(),
             "aile": aile,
             "hook": _ilk_cumle(script),
+            "kanca_yazisi": (data.get("_ekran_plani") or {}).get("kanca", ""),
+            "gorsel_stil": GORSEL_STIL if motor == "cloudflare-flux" else "",
             "tarih": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M"),
             "video_id": video_id,
             "paket_id": paket["meta"]["paket_id"],

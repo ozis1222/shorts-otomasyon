@@ -280,3 +280,11 @@ Otomasyonun bunu destekleyen tarafi:
 - Aciklamada diger videolara yonlendiren sabit satir.
 
 Senin yapman gerekenler: kanal dogrulama, duzenli yayin tempo, ve `PEXELS_API_KEY` eklemek.
+
+## Gorsel yonetmenlik (yonetmen plani + A/B)
+
+Ayrintilar: `docs/gorsel_yonetmenlik.md`. Ozet: her sahne icin Gemini anlatim parcasi, amac, odak,
+duygu, plan olcegi, kamera hareketi, isik, ekran yazisi, devamlilik ve ses efekti uretir; her gorsel
+kendi anlatim parcasinda BIR kez kullanilir. Kirmizi bant kapali, ilk karede tek kanca yazisi,
+altyazi guvenli alanda. Stil: `GORSEL_STIL=A` (varsayilan) / `B` / `AB` (deney, onayla).
+`Actions > Gorsel A/B ornegi` ayni hikayeyi iki stille uretir; hicbir sey yayinlamaz.

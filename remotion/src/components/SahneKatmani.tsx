@@ -4,8 +4,33 @@ import type {Kamera, Sahne} from '../types';
 
 // Kamera hareketi: 0..1 ilerlemeye gore olcek / kaydirma / donme.
 // Ilerleme yumusak (ease-in-out) -> "elle cekilmis" degil "animasyon kamerasi" hissi.
+// Yonetmen plani modunda (canli) hareketler olculu: hikayeye hizmet eden yavas yaklasma/kayma,
+// rastgele sarsinti yok. 'static' = vurgu karesi (yalnizca algilanmayacak kadar hafif nefes).
+const planliKamera = (kamera: Kamera, p: number) => {
+	switch (kamera) {
+		case 'pushIn':
+			return {s: interpolate(p, [0, 1], [1.04, 1.16]), x: 0, y: interpolate(p, [0, 1], [0, -1]), r: 0};
+		case 'pullOut':
+			return {s: interpolate(p, [0, 1], [1.17, 1.04]), x: 0, y: 0, r: 0};
+		case 'panLeft':
+			return {s: 1.12, x: interpolate(p, [0, 1], [3.2, -3.2]), y: 0, r: 0};
+		case 'panRight':
+			return {s: 1.12, x: interpolate(p, [0, 1], [-3.2, 3.2]), y: 0, r: 0};
+		case 'tiltUp':
+			return {s: 1.12, x: 0, y: interpolate(p, [0, 1], [3, -3]), r: 0};
+		case 'tiltDown':
+			return {s: 1.12, x: 0, y: interpolate(p, [0, 1], [-3, 3]), r: 0};
+		case 'static':
+		case 'dutch':
+		default:
+			return {s: interpolate(p, [0, 1], [1.05, 1.07]), x: 0, y: 0, r: 0};
+	}
+};
+
 const kameraDurumu = (kamera: Kamera, p: number) => {
 	switch (kamera) {
+		case 'static':
+			return {s: 1.06, x: 0, y: 0, r: 0};
 		case 'pushIn':
 			return {s: interpolate(p, [0, 1], [1.06, 1.3]), x: 0, y: interpolate(p, [0, 1], [0, -1.5]), r: 0};
 		case 'pullOut':
@@ -40,19 +65,19 @@ const ProsedurelArkaPlan: React.FC<{tohum: number}> = ({tohum}) => {
 export const SahneKatmani: React.FC<{sahne: Sahne; sureKare: number; sira: number; canli?: boolean}> = ({sahne, sureKare, sira, canli}) => {
 	const frame = useCurrentFrame();
 	const p = Easing.inOut(Easing.cubic)(Math.min(1, Math.max(0, frame / Math.max(1, sureKare))));
-	const k = kameraDurumu(sahne.camera, p);
+	const k = canli ? planliKamera(sahne.camera, p) : kameraDurumu(sahne.camera, p);
 
 	// "Nefes alan" 2.5D derinlik: ayni gorselin bulanik arka kopyasi daha yavas,
 	// net on kopyasi (kenarlari maskeli) biraz daha hizli hareket eder -> parallax hissi.
-	const nefes = Math.sin(frame / 22 + sira) * 0.6;
+	const nefes = canli ? 0 : Math.sin(frame / 22 + sira) * 0.6;
 
 	// Gecis 'zoom' ise ilk karelerde hizli iceri dalis + hareket bulaniklik
 	const dalis = sahne.transition === 'zoom' && sira > 0;
 	const ekOlcek = dalis ? interpolate(frame, [0, 9], [1.35, 1], {extrapolateRight: 'clamp', easing: Easing.out(Easing.exp)}) : 1;
 	const bulanik = dalis ? interpolate(frame, [0, 9], [14, 0], {extrapolateRight: 'clamp'}) : 0;
 
-	// Kanca: ilk sahne "carpma" ile acilir
-	const carpma = sira === 0 ? interpolate(frame, [0, 10], [1.25, 1], {extrapolateRight: 'clamp', easing: Easing.out(Easing.back(2))}) : 1;
+	// Kanca: ilk sahne "carpma" ile acilir (planli modda yok: ilk kare temiz ve okunur olmali)
+	const carpma = sira === 0 && !canli ? interpolate(frame, [0, 10], [1.25, 1], {extrapolateRight: 'clamp', easing: Easing.out(Easing.back(2))}) : 1;
 
 	const medya = (stil: React.CSSProperties) => {
 		if (!sahne.src) return <ProsedurelArkaPlan tohum={sira} />;
@@ -100,6 +125,34 @@ export const SahneKatmani: React.FC<{sahne: Sahne; sureKare: number; sira: numbe
 			>
 				{medya({})}
 			</AbsoluteFill>
+			{sahne.light && sahne.light !== 'steady' && <IsikKatmani tur={sahne.light} sureKare={sureKare} sira={sira} />}
 		</AbsoluteFill>
+	);
+};
+
+// Isik degisimi: titreyen lamba, yavas kararma, karanliktan aciga cikma, simsek.
+const IsikKatmani: React.FC<{tur: string; sureKare: number; sira: number}> = ({tur, sureKare, sira}) => {
+	const frame = useCurrentFrame();
+	const p = Math.min(1, frame / Math.max(1, sureKare));
+	let karanlik = 0;
+	let beyaz = 0;
+	if (tur === 'flicker') {
+		// deterministik, duzensiz kisa sonmeler (lamba/ampul)
+		const n = Math.sin(frame * 1.7 + sira) * Math.sin(frame * 0.53 + sira * 3);
+		karanlik = n > 0.82 ? 0.45 : n > 0.6 ? 0.18 : 0;
+	} else if (tur === 'dim_down') {
+		karanlik = interpolate(p, [0, 1], [0, 0.42]);
+	} else if (tur === 'reveal') {
+		karanlik = interpolate(frame, [0, Math.min(36, sureKare)], [0.75, 0], {extrapolateRight: 'clamp'});
+	} else if (tur === 'lightning') {
+		const t = frame % 75;
+		beyaz = t < 3 ? 0.55 : t < 6 ? 0.15 : t < 8 ? 0.4 : 0;
+		karanlik = 0.18;
+	}
+	return (
+		<>
+			{karanlik > 0 && <AbsoluteFill style={{backgroundColor: '#02040a', opacity: karanlik}} />}
+			{beyaz > 0 && <AbsoluteFill style={{backgroundColor: '#dfe8ff', opacity: beyaz, mixBlendMode: 'screen'}} />}
+		</>
 	);
 };

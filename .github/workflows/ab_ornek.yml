@@ -1,0 +1,56 @@
+name: Gorsel A/B ornegi (yayinlamaz)
+
+# Ayni hikaye + ayni ses, iki gorsel yaklasim (A / B). Yalnizca karsilastirma paketi uretir:
+# YouTube'a hicbir sey yuklemez, konu hafizasina yazmaz, repoya commit atmaz.
+on:
+  workflow_dispatch:
+    inputs:
+      icerik_ailesi:
+        description: "Bos = dagilima gore; gercek_vaka / hayatta_kalma / ozgun_korku"
+        type: string
+        default: ""
+
+concurrency:
+  group: shorts-uretim
+  cancel-in-progress: false
+
+jobs:
+  ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu
+      - run: pip install -r requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: remotion/package-lock.json
+      - name: Remotion bagimliliklari + headless Chrome
+        working-directory: remotion
+        run: |
+          npm ci --no-audit --no-fund
+          npx remotion browser ensure
+      - name: A ve B varyantlarini uret
+        env:
+          GEMINI_API_KEY:        ${{ secrets.GEMINI_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ICERIK_AILESI:         ${{ inputs.icerik_ailesi }}
+          UPLOAD_TO_YOUTUBE:     "0"
+          PYTHONUNBUFFERED:      "1"
+        run: python ab_ornek.py
+      - name: Karsilastirma paketini sakla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gorsel-ab
+          path: cikti/ab/
+          retention-days: 14
+          if-no-files-found: ignore

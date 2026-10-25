@@ -10,6 +10,12 @@ export const Gecis: React.FC<{tur: GecisTuru; tohum: number}> = ({tur, tohum}) =
 	const p = interpolate(frame, [0, GECIS_KARE], [1, 0], {extrapolateRight: 'clamp'});
 	if (p <= 0) return null;
 
+	if (tur === 'cut') return null;
+	if (tur === 'fade') {
+		// kisa karartma ile zaman/mekan atlamasi
+		const k = interpolate(frame, [0, 4, 10], [0.9, 0.6, 0], {extrapolateRight: 'clamp'});
+		return <AbsoluteFill style={{backgroundColor: '#000', opacity: k}} />;
+	}
 	if (tur === 'flash') {
 		return <AbsoluteFill style={{backgroundColor: '#fff', opacity: p * 0.85, mixBlendMode: 'screen'}} />;
 	}

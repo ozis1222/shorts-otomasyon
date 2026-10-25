@@ -74,3 +74,59 @@ export const Cta: React.FC<{metin: string; sureKare: number; renk?: string; ust?
 		</div>
 	);
 };
+
+// Ilk karedeki tek kanca yazisi: ust guvenli alanda (arama/menu cubugunun altinda), sakin giris,
+// kanca suresi bitince kaybolur. Basliktan ve altyazidan FARKLI bir cumledir.
+export const KancaYazisi: React.FC<{metin: string; sureKare: number}> = ({metin, sureKare}) => {
+	const frame = useCurrentFrame();
+	const {fps} = useVideoConfig();
+	if (!metin) return null;
+	const s = spring({frame, fps, config: {damping: 16, stiffness: 140}});
+	const cik = interpolate(frame, [sureKare - 8, sureKare], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+	return (
+		<div style={{position: 'absolute', top: 330, left: 70, right: 150, display: 'flex', justifyContent: 'center', opacity: Math.min(1, s * 1.5) * cik}}>
+			<div
+				style={{
+					transform: `translateY(${interpolate(s, [0, 1], [24, 0])}px)`,
+					color: '#fff',
+					fontFamily: 'Anton, Impact, sans-serif',
+					fontSize: 104,
+					lineHeight: 1.04,
+					letterSpacing: 2,
+					textAlign: 'center',
+					textTransform: 'uppercase',
+					WebkitTextStroke: '9px #000',
+					paintOrder: 'stroke fill',
+					textShadow: '0 8px 30px rgba(0,0,0,0.9)',
+				}}
+			>
+				{metin}
+			</div>
+		</div>
+	);
+};
+
+// Sahneye ozel kisa bilgi yazisi (tarih, yer, sayi): ust guvenli alanda kucuk etiket.
+export const SahneYazisi: React.FC<{metin: string; sureKare: number}> = ({metin, sureKare}) => {
+	const frame = useCurrentFrame();
+	if (!metin) return null;
+	const op = interpolate(frame, [0, 8, sureKare - 8, sureKare], [0, 1, 1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+	return (
+		<div style={{position: 'absolute', top: 320, left: 70, right: 150, display: 'flex', justifyContent: 'center', opacity: op}}>
+			<div
+				style={{
+					background: 'rgba(5,10,22,0.72)',
+					borderLeft: '6px solid #ffc83d',
+					color: '#f4f1e8',
+					fontFamily: 'Anton, Impact, sans-serif',
+					fontSize: 58,
+					letterSpacing: 3,
+					padding: '8px 26px',
+					textTransform: 'uppercase',
+				}}
+			>
+				{metin}
+			</div>
+		</div>
+	);
+};
