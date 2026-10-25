@@ -19,8 +19,8 @@
 
 **Stil.** Mevcut çizgi dili korunuyor (anime değil). İki varyant var:
 
-- **A (varsayılan):** cilalı 2D çizim; temiz kalın kontur, yumuşak gölgeleme, net yüz ifadesi ve beden dili.
-- **B:** sinematik çizim karesi; düşük anahtar ışık, hafif pus, ana nesne çok yakın, daha az yazı.
+- **A:** cilalı 2D çizim; temiz kalın kontur, yumuşak gölgeleme, net yüz ifadesi ve beden dili.
+- **B (varsayılan, 25.10.2026 seçimi):** sinematik çizim karesi; düşük anahtar ışık, hafif pus, ana nesne çok yakın, daha az yazı.
 
 İkisinde de ortak olanlar: tek net odak, ön/orta/arka plan derinliği, koyu lacivert ve siyah gölge, tek kontrollü sıcak sarı ışık kaynağı. Prompt'a ayrıca "görselde yazı yok" ve "doğal eller" kuralları ekli.
 

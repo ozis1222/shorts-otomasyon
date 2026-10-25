@@ -32,14 +32,8 @@ NEURON_GORSEL = 160
 
 
 def _b_varyanti(data):
-    """B: ana nesne daha yakin (genis planlar orta plana), ekran yazisi yalnizca kanca."""
-    b = json.loads(json.dumps({k: v for k, v in data.items() if not k.startswith("_")}))
-    yakinlas = {"wide": "medium", "medium": "close", "close": "close", "extreme_close": "extreme_close"}
-    for sh in b.get("scenes") or []:
-        if isinstance(sh, dict):
-            sh["shot"] = yakinlas.get(str(sh.get("shot") or "").lower(), "close")
-            sh["on_screen_text"] = ""
-    return b
+    """B: ana nesne daha yakin, ekran yazisi yalnizca kanca (uretimdeki kural: so.b_plani)."""
+    return so.b_plani(json.loads(json.dumps({k: v for k, v in data.items() if not k.startswith("_")})))
 
 
 def varyant_uret(stil, data, words, baslik, aciklama, etiketler, thumb_yazi, script):

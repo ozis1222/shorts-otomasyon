@@ -94,3 +94,11 @@ def test_stil_karsilastirmasi_az_veride_karar_vermez():
     vid_an = {"v0": {"averageViewPercentage": 80, "averageViewDuration": 30, "subscribersGained": 2}}
     o = ka.stil_karsilastir(videolar, {}, vid_an)
     assert o["A"]["sayi"] == 2 and o["A"]["izleme_yuzdesi_n"] == 1 and o["B"]["izleme_yuzdesi"] is None
+
+
+def test_b_plani_yakinlastirir_ve_yaziyi_kaldirir():
+    d = {"scenes": [{"shot": "wide", "on_screen_text": "1984"}, {"shot": "medium"}, {"shot": "extreme_close"}]}
+    so.b_plani(d)
+    assert [s["shot"] for s in d["scenes"]] == ["medium", "close", "extreme_close"]
+    assert all(s["on_screen_text"] == "" for s in d["scenes"])
+    assert so.GORSEL_STIL in ("A", "B")

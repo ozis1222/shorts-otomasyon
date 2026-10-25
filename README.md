@@ -286,5 +286,5 @@ Senin yapman gerekenler: kanal dogrulama, duzenli yayin tempo, ve `PEXELS_API_KE
 Ayrintilar: `docs/gorsel_yonetmenlik.md`. Ozet: her sahne icin Gemini anlatim parcasi, amac, odak,
 duygu, plan olcegi, kamera hareketi, isik, ekran yazisi, devamlilik ve ses efekti uretir; her gorsel
 kendi anlatim parcasinda BIR kez kullanilir. Kirmizi bant kapali, ilk karede tek kanca yazisi,
-altyazi guvenli alanda. Stil: `GORSEL_STIL=A` (varsayilan) / `B` / `AB` (deney, onayla).
+altyazi guvenli alanda. Stil: `GORSEL_STIL=B` (varsayilan, kullanici secimi) / `A` / `AB` (deney, onayla).
 `Actions > Gorsel A/B ornegi` ayni hikayeyi iki stille uretir; hicbir sey yayinlamaz.
