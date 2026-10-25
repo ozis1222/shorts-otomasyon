@@ -1,6 +1,7 @@
 import React from 'react';
 import {AbsoluteFill, Easing, Img, interpolate, OffthreadVideo, staticFile, useCurrentFrame} from 'remotion';
 import type {Kamera, Sahne} from '../types';
+import {Ortam} from './Ortam';
 
 // Kamera hareketi: 0..1 ilerlemeye gore olcek / kaydirma / donme.
 // Ilerleme yumusak (ease-in-out) -> "elle cekilmis" degil "animasyon kamerasi" hissi.
@@ -94,6 +95,36 @@ export const SahneKatmani: React.FC<{sahne: Sahne; sureKare: number; sira: numbe
 	const donusum = (carpan: number, ek: number) =>
 		`scale(${Math.max(1.02, (k.s + ek) * ekOlcek * carpma)}) translate(${k.x * carpan}%, ${(k.y + nefes) * carpan}%) rotate(${k.r}deg)`;
 
+	// 2.5D paralaks: arka plan yavas, on plan hizli hareket eder; baslangicta ikisi ust uste oturur.
+	if (canli && sahne.fg && sahne.bgp) {
+		const k0 = planliKamera(sahne.camera, 0);
+		const statik = sahne.camera === 'static';
+		const katman = (carpan: number, ekNefes: number) => {
+			const s = k0.s + (k.s - k0.s) * carpan + ekNefes;
+			const x = k0.x + (k.x - k0.x) * carpan;
+			const y = k0.y + (k.y - k0.y) * carpan;
+			return `scale(${Math.max(1.02, s)}) translate(${x}%, ${y}%)`;
+		};
+		// statik planda bile on plan cok hafif nefes alir (donuk durmasin)
+		const nefesOn = statik ? interpolate(p, [0, 1], [0, 0.018]) : 0;
+		const kenar = 'radial-gradient(ellipse 120% 90% at 50% 50%, #000 70%, transparent 100%)';
+		return (
+			<AbsoluteFill style={{overflow: 'hidden', backgroundColor: '#000'}}>
+				<AbsoluteFill style={{transform: katman(0.7, 0)}}>
+					<Img src={staticFile(sahne.bgp)} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+				</AbsoluteFill>
+				{sahne.efekt?.includes('sis') && <Ortam tur="sis" sira={sira} />}
+				<AbsoluteFill style={{transform: katman(1.3, nefesOn), WebkitMaskImage: kenar, maskImage: kenar}}>
+					<Img src={staticFile(sahne.fg)} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+				</AbsoluteFill>
+				{(sahne.efekt ?? []).filter((e) => e !== 'sis').map((e) => (
+					<Ortam key={e} tur={e} sira={sira} />
+				))}
+				{sahne.light && sahne.light !== 'steady' && <IsikKatmani tur={sahne.light} sureKare={sureKare} sira={sira} />}
+			</AbsoluteFill>
+		);
+	}
+
 	if (sahne.kind === 'video') {
 		// Gercek klip zaten hareketli: tek katman yeter (iki kez video cozmek render'i yavaslatir)
 		return (
@@ -125,6 +156,7 @@ export const SahneKatmani: React.FC<{sahne: Sahne; sureKare: number; sira: numbe
 			>
 				{medya({})}
 			</AbsoluteFill>
+			{canli && (sahne.efekt ?? []).map((e) => <Ortam key={e} tur={e} sira={sira} />)}
 			{sahne.light && sahne.light !== 'steady' && <IsikKatmani tur={sahne.light} sureKare={sureKare} sira={sira} />}
 		</AbsoluteFill>
 	);

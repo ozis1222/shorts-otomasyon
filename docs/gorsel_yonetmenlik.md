@@ -107,3 +107,15 @@ MANUEL ve UYARI yayını engellemez. Ama her ikisi de rapora yazılır, paket i�
    - Maliyet değişmez: ikisi de video başına ~8 FLUX görseli kullanır. Cloudflare'in ücretsiz günlük 10.000 neuron limiti içinde kalır (~160 neuron/görsel tahmini, kesin değer Cloudflare panelinde).
 
 **Ön koşul:** Analytics metrikleri için token'da `yt-analytics.readonly` yetkisi olmalı. Bunun için `yenile_token.py` çalıştırılmalı ve `TOKEN_JSON` secret'ı güncellenmeli. Bu yapılmadan yalnızca izlenme sayısı karşılaştırılabilir.
+
+## 6. Hareket: 2.5D paralaks + ortam efektleri (ücretsiz)
+
+- `derinlik.py`: Depth-Anything-V2-Small (ONNX, ~99 MB, Apache-2.0) ile her görselin derinlik haritası çıkarılır ve görsel iki katmana ayrılır:
+  - **Ön plan:** karakter ve yakın nesne. Yumuşak kenarlı, karenin alt kısmına doğru söner; böylece zemin/su ayrı kaymaz ve dikiş izi oluşmaz.
+  - **Arka plan:** ön planın yeri OpenCV inpaint ile doldurulur.
+  - Görsel başına CPU'da 2–4 sn sürer. Ayrım güvenilmezse (ön plan karenin %10'undan az ya da %60'ından çok) o sahne tek katmanla devam eder.
+- **Remotion:** Kamera hareketinde arka plan 0,7, ön plan 1,3 katsayıyla hareket eder; başlangıç karesinde iki katman tam üst üste oturur. Statik planda ön plan çok hafif "nefes alır".
+- **Ortam efektleri** (`components/Ortam.tsx`, prosedürel): toz, yağmur, kar, sis, kabarcık, kıvılcım.
+  - Yalnızca görselde gerçekten görünen şeye göre seçilir (görsel tarifi + mekân); anlatımdaki kelimelere bakılmaz.
+  - Kapalı mekânda yağmur ve kar kullanılmaz; kabarcık yalnızca su altı karelerinde.
+- **Kapatmak için:** `PARALAKS=0`.

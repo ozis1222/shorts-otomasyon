@@ -22,6 +22,11 @@ export type Sahne = {
 	light?: Isik;
 	text?: string;
 	sfx?: string | null;
+	// 2.5D paralaks: on plan kesigi (RGBA) + yeri doldurulmus arka plan; yoksa tek katman
+	fg?: string | null;
+	bgp?: string | null;
+	// Ortam efektleri (toz, yagmur, kar, sis, kabarcik, kivilcim)
+	efekt?: string[];
 };
 
 export type DosyaKarti = {name: string; year: string; place: string; start: number};

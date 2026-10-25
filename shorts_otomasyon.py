@@ -2416,6 +2416,9 @@ def _bulanik_kopya(yol):
         return None
 
 
+from derinlik import katmanlara_ayir, ortam_efektleri  # noqa: E402
+
+PARALAKS = os.environ.get("PARALAKS", "1") != "0"
 _PLAN_KAMERA = {"push_in": "pushIn", "pull_out": "pullOut", "pan_left": "panLeft", "pan_right": "panRight",
                 "tilt_up": "tiltUp", "tilt_down": "tiltDown", "static": "static"}
 _PLAN_ISIK = {"steady", "flicker", "dim_down", "reveal", "lightning"}
@@ -2496,6 +2499,8 @@ def planli_sahneler(eslesme, words, dur, sfx_dosyalari=None):
             "light": isik if isik in _PLAN_ISIK else "steady",
             "text": yazi if 0 < len(yazi.split()) <= 4 else "",
             "sfx": sfx_dosyalari.get(str(plan.get("sfx") or "").lower()),
+            # efekt yalnizca GORSELDE gorunenden secilir (anlatimdaki "storm" bodruma yagmur yagdirmasin)
+            "efekt": ortam_efektleri(" ".join(str(plan.get(a) or "") for a in ("image_prompt", "place"))),
         })
     return sahneler
 
@@ -2583,8 +2588,23 @@ def remotion_olustur(words, medya, data, thumb_yazi, out_path, cizgi=False):
             kopya.append(("run/" + ad, plan))
         sfx_plan = {k: v for k, v in sfx.items() if v and k in ("boom", "hit", "whoosh", "creak", "knock", "static", "heartbeat")}
         sahneler = planli_sahneler(kopya, words, dur, sfx_plan)
+        katmanli = 0
         for sh in sahneler:
-            sh["bg"] = _bulanik_kopya(os.path.join(REMOTION_RUN, os.path.basename(sh["src"])))
+            tam = os.path.join(REMOTION_RUN, os.path.basename(sh["src"]))
+            sh["bg"] = _bulanik_kopya(tam)
+            # 2.5D paralaks: derinlik haritasiyla on/arka plan katmanlari (ucretsiz, CPU)
+            if PARALAKS:
+                try:
+                    k = katmanlara_ayir(tam, REMOTION_RUN, os.path.splitext(os.path.basename(tam))[0])
+                except Exception as e:
+                    k = None
+                    print("    (paralaks atlandi:", str(e)[:80], ")")
+                if k:
+                    sh["fg"] = "run/" + os.path.basename(k["fg"])
+                    sh["bgp"] = "run/" + os.path.basename(k["bg"])
+                    katmanli += 1
+        print(f"  Paralaks: {katmanli}/{len(sahneler)} sahne katmanli | efektler: "
+              + ", ".join("+".join(sh.get("efekt") or []) for sh in sahneler))
     kanca = re.sub(r"\s+", " ", str((data or {}).get("hook_text") or "")).strip().upper() if planli else ""
     if kanca and ekran_yazilari_cakisma((data or {}).get("title", ""), kanca, [], (data or {}).get("script", "")):
         kanca = ""        # baslik/anlatimi tekrar eden kanca gosterilmez

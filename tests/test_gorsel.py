@@ -102,3 +102,12 @@ def test_b_plani_yakinlastirir_ve_yaziyi_kaldirir():
     assert [s["shot"] for s in d["scenes"]] == ["medium", "close", "extreme_close"]
     assert all(s["on_screen_text"] == "" for s in d["scenes"])
     assert so.GORSEL_STIL in ("A", "B")
+
+
+def test_ortam_efekti_kapali_mekanda_yagmur_yok():
+    from derinlik import ortam_efektleri
+    assert "yagmur" not in ortam_efektleri("a man trapped in a flooded basement during heavy rain")
+    assert "kabarcik" in ortam_efektleri("underwater macro shot of a rusted hatch")
+    assert ortam_efektleri("a lonely road at night in heavy rain")[0] == "yagmur"
+    assert ortam_efektleri("a candle on a desk in a dark room") == ["kivilcim"]
+    assert ortam_efektleri("an empty office") == ["toz"]
