@@ -46,7 +46,10 @@ def _paket(tmp_path, gecti=True, paket_id="p1"):
     k = tmp_path / "paket"
     k.mkdir()
     (k / "video.mp4").write_bytes(b"0" * 100)
-    (k / "meta.json").write_text(json.dumps({"paket_id": paket_id, "baslik": "t", "aciklama": "a",
+    (k / "meta.json").write_text(json.dumps({"paket_id": paket_id, "baslik": "The Empty Clock Struck Twelve #Shorts",
+                                             "aciklama": "This is a fictional story, created for entertainment only.",
+                                             "aile": "ozgun_korku", "etiketler": ["horror story", "true mystery"],
+                                             "medya_kaynagi": ["cloudflare-flux"],
                                              "kalite": {"gecti": gecti, "kontroller": []}}))
     return str(k)
 
