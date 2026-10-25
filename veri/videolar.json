@@ -35,9 +35,11 @@
    "kalite_hatalari": [],
    "uretim_notlari": [],
    "kaynak_url": "",
-   "durum": "onay_bekliyor",
-   "video_id": "",
-   "github_run_id": "40228296893"
+   "durum": "yayinlandi",
+   "video_id": "TUBO2uFhYLU",
+   "github_run_id": "40228296893",
+   "gizlilik": "public",
+   "yayin_tarihi": "2026-10-25T21:53:07.558541+00:00"
   },
   {
    "paket_id": "20261025-210957-831819",
