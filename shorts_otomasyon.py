@@ -2896,13 +2896,13 @@ _CF_STILLER = {
           "chiaroscuro, moody atmosphere with light haze, shallow depth of field, the key object large and close "
           "in frame, subtle film grain, " + _CF_ORTAK),
 }
-GORSEL_STIL = (os.environ.get("GORSEL_STIL") or "A").strip().upper()
+GORSEL_STIL = (os.environ.get("GORSEL_STIL") or "B").strip().upper()   # B: kullanici secimi (25.10.2026)
 if GORSEL_STIL == "AB":
     # Deney modu (yalnizca kullanici onayiyla acilir): stiller gune gore donusumlu, her hikaye TEK stille
     # yayinlanir; ayni video iki kez yuklenmez. Olcum: kanal_analiz.py --haftalik "Gorsel stil A/B".
     GORSEL_STIL = "AB"[datetime.date.today().toordinal() % 2]
 if GORSEL_STIL not in _CF_STILLER:
-    GORSEL_STIL = "A"
+    GORSEL_STIL = "B"
 _CF_STIL = _CF_STILLER[GORSEL_STIL]
 _CF_PLAN = {"extreme_close": "extreme close-up shot", "close": "close-up shot",
             "medium": "medium shot", "wide": "wide establishing shot"}
@@ -2979,6 +2979,19 @@ def cf_gorsel(prompt, hedef, tohum, stil=None):
 
 
 _ANLATICI_RE = re.compile(r"\b(?:an?|the)\s+(?:stick ?man\s+)?(?:narrator|presenter|stick ?man)\b", re.I)
+
+
+_B_YAKINLAS = {"wide": "medium", "medium": "close", "close": "close", "extreme_close": "extreme_close"}
+
+
+def b_plani(data):
+    """Stil B'nin plan kurallari: ana nesne daha yakin (genis -> orta, orta -> yakin plan) ve
+    sahne yazisi yok (ekranda yalnizca ilk karedeki kanca). data yerinde degisir ve geri doner."""
+    for sh in (data or {}).get("scenes") or []:
+        if isinstance(sh, dict):
+            sh["shot"] = _B_YAKINLAS.get(str(sh.get("shot") or "").lower(), "close")
+            sh["on_screen_text"] = ""
+    return data
 
 
 def sahne_promptu(sahne, look_bible="", ilk=False):
@@ -3499,6 +3512,8 @@ def main():
     if stick and cf_hazir():
         # Hikayeye ozel cizgi film sahneleri (Cloudflare FLUX, ucretsiz kota)
         print("[4/6] Hikaye sahneleri ciziliyor (Cloudflare FLUX)...")
+        if GORSEL_STIL == "B":
+            b_plani(data)
         medya = flux_sahneleri(data, sorgular)
         if len(medya) >= ANIM_MIN_GORSEL:
             print("[5/6] Video kurgulaniyor (Remotion)...")
