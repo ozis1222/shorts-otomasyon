@@ -59,6 +59,25 @@
    "durum": "onay_bekliyor",
    "video_id": "",
    "github_run_id": "40233428749"
+  },
+  {
+   "paket_id": "20261025-220608-c07699",
+   "olusturma": "2026-10-25T22:06:08.835143+00:00",
+   "aile": "hayatta_kalma",
+   "konu": "The Flooded Basement Hatch Incident",
+   "topic_type": "impossible event",
+   "baslik": "The Basement Water Was Three Feet HIGHER Than Outside #Shorts",
+   "sure_sn": 47.21,
+   "gorsel_motoru": "cloudflare-flux",
+   "gorsel_stil": "B",
+   "maliyet_usd": 0.0,
+   "kalite_gecti": true,
+   "kalite_hatalari": [],
+   "uretim_notlari": [],
+   "kaynak_url": "",
+   "durum": "onay_bekliyor",
+   "video_id": "",
+   "github_run_id": "40237825251"
   }
  ]
 }
