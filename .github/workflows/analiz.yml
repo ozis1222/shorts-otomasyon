@@ -1,0 +1,51 @@
+name: Kanal analizi
+
+# Gunluk: gercek kanal verisini ceker (veri/istatistik/). Pazartesi: haftalik rapor + konu dagilimi.
+on:
+  schedule:
+    - cron: "41 5 * * *"
+  workflow_dispatch:
+    inputs:
+      haftalik:
+        description: "1 = haftalik raporu da simdi uret"
+        type: string
+        default: "1"
+
+concurrency:
+  group: shorts-uretim
+  cancel-in-progress: false
+
+jobs:
+  analiz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Token
+        env:
+          TOKEN_JSON: ${{ secrets.TOKEN_JSON }}
+        run: printf '%s' "$TOKEN_JSON" > token.json
+      - name: Gunluk veri
+        run: python kanal_analiz.py --anlik
+      - name: Haftalik rapor (Pazartesi veya elle)
+        if: inputs.haftalik == '1' || github.event_name == 'schedule'
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(date -u +%u)" != "1" ]; then
+            echo "Bugun pazartesi degil: haftalik rapor atlandi"; exit 0
+          fi
+          python kanal_analiz.py --haftalik
+      - name: Kaydet
+        if: always()
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add veri/ 2>/dev/null || true
+          git diff --cached --quiet && exit 0
+          git commit -m "kanal analizi [skip ci]"
+          for i in 1 2 3; do git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push && exit 0; sleep 5; done

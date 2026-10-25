@@ -1,0 +1,14 @@
+{
+ "guncelleme": "2026-10-25",
+ "agirliklar": {
+  "gercek_vaka": 0.34,
+  "hayatta_kalma": 0.33,
+  "ozgun_korku": 0.33
+ },
+ "neden": "yeterli veri yok: dagilim degismedi",
+ "onceki": {
+  "gercek_vaka": 0.34,
+  "hayatta_kalma": 0.33,
+  "ozgun_korku": 0.33
+ }
+}

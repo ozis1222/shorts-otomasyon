@@ -3,11 +3,45 @@
 Tam otomatik YouTube Shorts uretimi: konu bulur, senaryo yazar, seslendirir, gorselleri toplar,
 1080x1920 video kurgular, thumbnail uretir ve YouTube'a yukler.
 
-GitHub Actions uzerinde **her gun otomatik** calisir (`schedule`: 15:17 UTC = 18:17 Turkiye).
+GitHub Actions uzerinde Pzt-Cum otomatik **uretir** (`schedule`: 15:17 UTC = 18:17 Turkiye); yayin onayla yapilir (asagiya bak).
 Elle ya da cron-job.org ile `workflow_dispatch` tetiklenerek ek video da uretilebilir.
 
 > cron-job.org da hala tetikliyorsa gunde birden fazla video cikar. Gunde sadece 1 video
 > istiyorsan cron-job.org'daki isi kapat.
+
+---
+
+## Yayin akisi: URET -> KONTROL ET -> ONAYLA -> YAYINLA
+
+Uretim ve yayin ayridir. **Hicbir zamanlanmis kosu videoyu kendiliginden yayinlamaz.**
+
+1. `Shorts Otomasyon (uret + kalite kontrol)` (Pzt-Cum 15:17 UTC + elle/cron-job.org): video uretir,
+   `kalite_kontrol.py` ile denetler, sonucu `yayin-paketi` artifact'ine (video + thumbnail + `meta.json`,
+   14 gun saklanir) ve `veri/videolar.json`'a yazar. Kontrolden gecmeyen kosu KIRMIZI biter.
+2. Paketi Actions sayfasindan indirip izle.
+3. Onaylarsan: Actions > **Yayinla (onayli)** > Run workflow > uretim kosusunun `run_id`'si + gizlilik.
+   `yayinla.py` kalite kontrolunden gecmemis veya daha once yuklenmis paketi yuklemez.
+
+Kalite kontrolu (`kalite_kontrol.py`): oynatilabilirlik, 15-60 sn, 1080x1920, H.264/AAC, sessiz ses,
+siyah kare; baslik/aciklama, anahtar kelime doldurma, spam etiket; kurgu etiketi; gercek vakada
+Wikipedia ile dogrulanmis kaynak; yalnizca lisansi bilinen medya.
+
+## Icerik aileleri (ilk 30 gun)
+
+`gercek_vaka` (belgelenmis kaybolma vakalari, Wikipedia ile dogrulanir), `hayatta_kalma` (kurgu,
+etiketli), `ozgun_korku` (kurgu, etiketli). Dagilim `veri/icerik_dagilimi.json`; `ICERIK_AILESI` ile zorlanabilir.
+
+## Kanal analizi
+
+`Kanal analizi` is akisi her gun `kanal_analiz.py --anlik` ile gercek kanal verisini (Data API) ceker,
+Pazartesi `--haftalik` ile ayni yayin yasinda (ilk 7 gun) karsilastirma raporu `veri/haftalik_rapor.md`
+yazar ve konu dagilimini sinirli adimlarla gunceller. Izlenme suresi/yuzdesi, abone kazanimi ve trafik
+kaynaklari icin token'da `yt-analytics.readonly` yetkisi gerekir: `python yenile_token.py` calistirip
+`TOKEN_JSON` secret'ini guncelle (Google Cloud'da "YouTube Analytics API" etkin olmali).
+
+## Testler
+
+`python -m pytest -q tests` (ffmpeg gerekir). `Testler` is akisi her push'ta calisir.
 
 ---
 

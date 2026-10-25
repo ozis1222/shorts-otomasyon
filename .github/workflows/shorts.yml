@@ -1,21 +1,23 @@
-name: Shorts Otomasyon
+name: Shorts Otomasyon (uret + kalite kontrol)
 
+# URETIM ve YAYIN AYRIDIR. Bu is videoyu uretir, kalite/uygunluk kontrolunden gecirir ve
+# "yayin-paketi" artifact'i olarak saklar. VARSAYILAN OLARAK HICBIR SEY YAYINLAMAZ.
+# Onaylamak icin: Actions > "Yayinla (onayli)" > Run workflow > bu kosunun run_id'si.
 on:
-  # HER GUN otomatik yayin: 15:17 UTC = 18:17 Turkiye = 11:17 ABD Dogu (Ingilizce izleyici sabahi).
-  # GitHub zamanlanmis isleri yogunlukta birkac dakika gecikebilir; dakika bilerek :00 degil.
+  # Haftada 5 Shorts (Pzt-Cum) 15:17 UTC = 18:17 Turkiye = 11:17 ABD Dogu.
   schedule:
-    - cron: "17 15 * * *"
+    - cron: "17 15 * * 1-5"
   workflow_dispatch:   # elle (veya cron-job.org ile) ek video icin
     inputs:
       privacy:
         description: "YouTube gizlilik"
         type: choice
-        default: "public"
+        default: "private"
         options: [public, unlisted, private]
       upload:
-        description: "YouTube'a yukle? 1=evet, 0=sadece uret (artifact olarak indirilir)"
+        description: "Onaysiz DOGRUDAN yukle? 0=hayir (onerilen: paket uret, sonra Yayinla ile onayla), 1=evet"
         type: string
-        default: "1"
+        default: "0"
       motor:
         description: "Render motoru: remotion = animasyon, moviepy = eski stok klip"
         type: choice
@@ -77,9 +79,11 @@ jobs:
           CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
           PEXELS_API_KEY:  ${{ secrets.PEXELS_API_KEY }}
-          # Elle tetiklemede secilebilir; cron (girdisiz) -> public + yukle (eski davranis)
-          PRIVACY:            ${{ inputs.privacy || 'public' }}
-          UPLOAD_TO_YOUTUBE:  ${{ inputs.upload || '1' }}
+          # Girdisiz tetikleme (zamanlayici / cron-job.org) -> SADECE URET, yayinlama (onay bekler)
+          PRIVACY:            ${{ inputs.privacy || 'private' }}
+          # Dis tetikleyici (cron-job.org vb.) upload=1 gonderse bile yukleme YAPILMAZ; dogrudan yukleme
+          # yalnizca repo degiskeni OTOMATIK_YAYIN=1 iken acilir (kullanici onayiyla). Normal yol: yayinla.yml
+          UPLOAD_TO_YOUTUBE:  ${{ vars.OTOMATIK_YAYIN == '1' && inputs.upload || '0' }}
           RENDER_MOTORU:      ${{ inputs.motor || 'remotion' }}
           # Loglar canli aksin: is zaman asimina ugrarsa nerede takildigi gorunsun
           PYTHONUNBUFFERED:   "1"
@@ -93,7 +97,7 @@ jobs:
           git config user.email "actions@github.com"
 
           # Sadece VAR OLAN dosyalari ekle (toplu 'git add' eksik dosyada tumden basarisiz olur)
-          for f in gecmis.json performans.json viral_ornekler.json kullanilan_gorseller.txt; do
+          for f in gecmis.json performans.json viral_ornekler.json kullanilan_gorseller.txt veri/videolar.json; do
             if [ -f "$f" ]; then git add "$f"; fi
           done
 
@@ -115,14 +119,12 @@ jobs:
           done
           echo "hafiza push edilemedi (bir sonraki kosuda tekrar denenecek)"
 
-      - name: Uretilen videoyu ve thumbnail'i sakla (kontrol icin)
+      - name: Yayin paketini sakla (onay icin; video + thumbnail + meta.json + kalite raporu)
         if: always()
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: son-video
-          path: |
-            shorts_hazir.mp4
-            thumbnail.jpg
-          retention-days: 5
+          name: yayin-paketi
+          path: cikti/paket/
+          retention-days: 14
           if-no-files-found: ignore
