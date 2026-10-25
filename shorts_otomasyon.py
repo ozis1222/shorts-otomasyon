@@ -2886,6 +2886,8 @@ def stickman_olustur(words, data, thumb_yazi, out_path, thumb_path=None):
 _CF_ORTAK = ("one clear focal subject, uncluttered composition with depth (foreground, subject, background), "
              "deep navy blue and black shadows, a single controlled warm yellow light source, "
              "consistent character design, natural hands with five fingers, objects never have faces, "
+             "each person appears only once in the frame, no half-cut figures at the frame edges, "
+             "faces in the middle of the frame, lower third kept simple and dark, "
              "vertical 9:16 composition, no text, no letters, no captions, no watermark, no logo")
 _CF_STILLER = {
     "A": ("polished 2D cartoon illustration, clean bold black ink outlines, rich flat colors with soft cel shading, "
@@ -2979,8 +2981,9 @@ def cf_gorsel(prompt, hedef, tohum, stil=None):
 _ANLATICI_RE = re.compile(r"\b(?:an?|the)\s+(?:stick ?man\s+)?(?:narrator|presenter|stick ?man)\b", re.I)
 
 
-def sahne_promptu(sahne, look_bible=""):
-    """Sahne planindan FLUX metni: plan olcegi + sahne tarifi + sabit karakter/mekan tarifi."""
+def sahne_promptu(sahne, look_bible="", ilk=False):
+    """Sahne planindan FLUX metni: plan olcegi + sahne tarifi + sabit karakter/mekan tarifi.
+    ilk=True: kanca yazisi ust bolgede durur -> ust ceyrek bos ve koyu kalsin, yuz ortada."""
     tarif = _ANLATICI_RE.sub("a frightened witness", str(sahne.get("image_prompt") or "").strip())
     if not tarif:
         return ""
@@ -2990,6 +2993,8 @@ def sahne_promptu(sahne, look_bible=""):
         parca.append("focus on " + str(sahne["focus"])[:120])
     if look_bible:
         parca.append("consistent look: " + str(look_bible)[:300])
+    if ilk:
+        parca.append("the top quarter of the frame is empty dark background with no face or object in it")
     return ", ".join(p for p in parca if p)
 
 
@@ -3006,7 +3011,7 @@ def flux_sahneleri(data, sorgular, stil=None, klasor=None):
             pass
     sahneler = [s for s in (data.get("scenes") or []) if isinstance(s, dict)] if isinstance(data, dict) else []
     look = str(data.get("look_bible") or "") if isinstance(data, dict) else ""
-    planli = [(sahne_promptu(s, look), s) for s in sahneler]
+    planli = [(sahne_promptu(s, look, ilk=(i == 0)), s) for i, s in enumerate(sahneler)]
     planli = [(t, s) for t, s in planli if t]
     if not planli:   # eski yanit bicimi: yalnizca sorgu listesi
         planli = [(_ANLATICI_RE.sub("a frightened witness", str(q)), {})
