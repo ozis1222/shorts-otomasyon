@@ -75,9 +75,10 @@
    "kalite_hatalari": [],
    "uretim_notlari": [],
    "kaynak_url": "",
-   "durum": "onay_bekliyor",
+   "durum": "yeniden_uretildi",
    "video_id": "",
-   "github_run_id": "40237825251"
+   "github_run_id": "40237825251",
+   "yerine": "20261026-062654-7bc9dc"
   },
   {
    "paket_id": "20261026-051418-151aa2",
@@ -97,6 +98,27 @@
    "durum": "onay_bekliyor",
    "video_id": "",
    "github_run_id": "40271979135"
+  },
+  {
+   "paket_id": "20261026-062654-7bc9dc",
+   "olusturma": "2026-10-26T06:26:54.755825+00:00",
+   "aile": "hayatta_kalma",
+   "konu": "The Flooded Basement Hatch Incident",
+   "topic_type": "impossible event",
+   "baslik": "The Basement Water Was Three Feet HIGHER Than Outside #Shorts",
+   "sure_sn": 51.16,
+   "gorsel_motoru": "cloudflare-flux",
+   "gorsel_stil": "B",
+   "maliyet_usd": 0.0,
+   "kalite_gecti": true,
+   "kalite_hatalari": [],
+   "uretim_notlari": [
+    "yeniden uretildi: 20261025-220608-c07699 (ses: kokoro:am_michael)"
+   ],
+   "kaynak_url": "",
+   "durum": "onay_bekliyor",
+   "video_id": "",
+   "github_run_id": "40279313198"
   }
  ]
 }
