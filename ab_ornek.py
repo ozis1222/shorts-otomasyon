@@ -12,7 +12,6 @@ donusumlu kullanilmasiyla yapilir (ayni video iki kez yuklenmez) - bkz. docs/gor
 
 Kullanim:  python ab_ornek.py            (Gemini + Cloudflare anahtarlari gerekir)
 """
-import asyncio
 import json
 import os
 import shutil
@@ -63,7 +62,7 @@ def varyant_uret(stil, data, words, baslik, aciklama, etiketler, thumb_yazi, scr
         "varyant": stil, "aile": data.get("aile"), "konu": data.get("topic"),
         "baslik": baslik, "aciklama": aciklama, "etiketler": etiketler, "script": script,
         "kaynak": data.get("kaynak") or {}, "gorsel_motoru": "cloudflare-flux", "gorsel_stil": stil,
-        "medya_kaynagi": ["cloudflare-flux", "edge-tts", "sentetik-ses"],
+        "medya_kaynagi": ["cloudflare-flux", so.SON_SES_MOTORU, "sentetik-ses"],
         "gorsel_sayisi": len(medya), "kanca_yazisi": (data.get("_ekran_plani") or {}).get("kanca", ""),
         "maliyet": {"usd": 0.0, "tahmini_neuron": len(medya) * NEURON_GORSEL,
                     "not": "Cloudflare ucretsiz gunluk 10.000 neuron icinde"},
@@ -93,7 +92,7 @@ def main():
     thumb_yazi = (data.get("thumbnail_text") or "").strip()
     print(f"      Konu: {data.get('topic')} | Kanca: {data.get('hook_text')}")
     print("[2/3] Seslendirme (her iki varyant ayni ses)...")
-    words = asyncio.run(so.seslendir_ve_zamanla(script, so.VOICE, so.AUDIO_FILE))
+    words, _ = so.seslendir(script, so.AUDIO_FILE)
     sonuclar = {}
     for stil, veri in (("A", data), ("B", _b_varyanti(data))):
         print(f"[3/3] Varyant {stil} ...")

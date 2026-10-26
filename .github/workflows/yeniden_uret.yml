@@ -1,0 +1,89 @@
+name: Paketi yeniden uret (yeni ses + hareket, yayinlamaz)
+
+# Bir uretim kosusunun paketini (ayni hikaye + ayni gorseller) Kokoro sesi ve guncel kurguyla
+# yeniden uretir. Yeni FLUX gorseli uretmez, YouTube'a yuklemez. Cikan paket "Yayinla (onayli)"
+# ile bu kosunun run_id'si verilerek yayinlanir.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Kaynak uretim kosusunun run_id'si"
+        required: true
+        type: string
+      kokoro_ses:
+        description: "Kokoro anlatici sesi (orn. am_michael, am_fenrir, bm_george, af_heart)"
+        type: string
+        default: "am_michael"
+
+concurrency:
+  group: shorts-uretim
+  cancel-in-progress: false
+
+jobs:
+  yeniden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu
+      - name: Kokoro ses motoru (CPU torch + dil modeli, onbellekli)
+        run: |
+          sudo apt-get install -y espeak-ng
+          pip install --index-url https://download.pytorch.org/whl/cpu torch
+          pip install "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
+      - name: Kokoro model onbellegi (~330 MB)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: kokoro-82m-v1
+      - run: pip install -r requirements.txt
+      - name: Derinlik modeli onbellegi (2.5D paralaks, ~99 MB)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/unsadark
+          key: derinlik-depth-anything-v2-small-v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: remotion/package-lock.json
+      - name: Remotion bagimliliklari + headless Chrome
+        working-directory: remotion
+        run: |
+          npm ci --no-audit --no-fund
+          npx remotion browser ensure
+      - name: Kaynak paketi indir
+        uses: actions/download-artifact@v4
+        with:
+          name: yayin-paketi
+          path: cikti/kaynak_paket
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Yeniden uret
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          KOKORO_SES:     ${{ inputs.kokoro_ses }}
+          PYTHONUNBUFFERED: "1"
+        run: python yeniden_uret.py --kaynak cikti/kaynak_paket
+      - name: Kayitlari kaydet
+        if: always()
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add veri/videolar.json 2>/dev/null || true
+          git diff --cached --quiet && exit 0
+          git commit -m "yeniden uretim kaydi: ${{ inputs.run_id }} [skip ci]"
+          for i in 1 2 3; do git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push && exit 0; sleep 5; done
+      - name: Yeni yayin paketini sakla
+        uses: actions/upload-artifact@v4
+        with:
+          name: yayin-paketi
+          path: cikti/paket/
+          retention-days: 14
+          if-no-files-found: ignore

@@ -105,3 +105,34 @@ def test_tema_son_kullanilanlari_tekrar_etmez():
     for _ in range(30):
         assert so.tema_sec(gecmis, "ozgun_korku") not in havuz[:8]
     assert all(len(v) >= 12 for v in so.TEMALAR.values())
+
+
+def test_kokoro_kelime_zamanlari_ve_noktalama(tmp_path, monkeypatch):
+    import sys
+    import types
+    import numpy as np
+    import shorts_otomasyon as so
+
+    class Tok:
+        def __init__(self, text, a, b):
+            self.text, self.start_ts, self.end_ts = text, a, b
+
+    class Sonuc:
+        def __init__(self, toks):
+            self.audio = np.zeros(24000, dtype=np.float32)   # 1 sn
+            self.tokens = toks
+
+    class SahteHat:
+        def __init__(self, **k):
+            pass
+
+        def __call__(self, metin, voice=None, speed=None):
+            yield Sonuc([Tok("The", 0.1, 0.3), Tok("door", 0.3, 0.6), Tok(".", None, None)])
+            yield Sonuc([Tok("It", 0.1, 0.2), Tok("opened", 0.2, 0.7), Tok("!", None, None)])
+
+    monkeypatch.setitem(sys.modules, "kokoro", types.SimpleNamespace(KPipeline=SahteHat))
+    monkeypatch.setattr(so, "_kokoro_hatti", None)
+    w = so.kokoro_seslendir("The door. It opened!", str(tmp_path / "s.wav"))
+    assert [x["word"] for x in w] == ["The", "door.", "It", "opened!"]
+    assert w[2]["start"] == 1.1          # ikinci parca 1 sn ofsetle baslar
+    assert (tmp_path / "s.wav").exists()
