@@ -116,9 +116,11 @@
     "yeniden uretildi: 20261025-220608-c07699 (ses: kokoro:am_michael)"
    ],
    "kaynak_url": "",
-   "durum": "onay_bekliyor",
-   "video_id": "",
-   "github_run_id": "40279313198"
+   "durum": "yayinlandi",
+   "video_id": "JC96h7oUiww",
+   "github_run_id": "40279313198",
+   "gizlilik": "public",
+   "yayin_tarihi": "2026-10-26T06:32:28.008405+00:00"
   }
  ]
 }
