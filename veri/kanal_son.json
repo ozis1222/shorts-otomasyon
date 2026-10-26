@@ -1,23 +1,63 @@
 {
- "tarih": "2026-10-25",
+ "tarih": "2026-10-26",
  "kanal": {
   "kanal_adi": "Unsolved After Dark",
   "abone": 124,
-  "toplam_izlenme": 86325,
-  "video_sayisi": 144
+  "toplam_izlenme": 88933,
+  "video_sayisi": 146
  },
  "videolar": [
+  {
+   "video_id": "JC96h7oUiww",
+   "baslik": "The Basement Water Was Three Feet HIGHER Than Outside #Shorts",
+   "yayin": "2026-10-26T06:32:53Z",
+   "sure_sn": 52,
+   "gizlilik": "public",
+   "izlenme": 10,
+   "begeni": 0,
+   "yorum": 0,
+   "aile": "hayatta_kalma",
+   "topic_type": "impossible event",
+   "gorsel_stil": "B"
+  },
+  {
+   "video_id": "TUBO2uFhYLU",
+   "baslik": "The Soup Was Served on the CEILING #Shorts",
+   "yayin": "2026-10-25T21:53:33Z",
+   "sure_sn": 50,
+   "gizlilik": "public",
+   "izlenme": 264,
+   "begeni": 6,
+   "yorum": 0,
+   "aile": "ozgun_korku",
+   "topic_type": "cold case file",
+   "gorsel_stil": "B"
+  },
+  {
+   "video_id": "fwRFyukp1kU",
+   "baslik": "The Empty Grandfather Clock STRUCK Twelve Every Midnight #Shorts",
+   "yayin": "2026-10-25T14:30:37Z",
+   "sure_sn": 50,
+   "gizlilik": "public",
+   "izlenme": 422,
+   "begeni": 4,
+   "yorum": 0,
+   "aile": "ozgun_korku",
+   "topic_type": "strange object",
+   "gorsel_stil": ""
+  },
   {
    "video_id": "vKXJxErWWKU",
    "baslik": "Her Car Key Was BENT in Half on the Asphalt #Shorts",
    "yayin": "2026-10-25T05:11:05Z",
    "sure_sn": 29,
    "gizlilik": "public",
-   "izlenme": 568,
-   "begeni": 10,
+   "izlenme": 717,
+   "begeni": 13,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "true crime"
+   "topic_type": "true crime",
+   "gorsel_stil": ""
   },
   {
    "video_id": "v01K7FIxfRc",
@@ -25,11 +65,12 @@
    "yayin": "2026-10-24T21:16:03Z",
    "sure_sn": 33,
    "gizlilik": "public",
-   "izlenme": 915,
-   "begeni": 17,
+   "izlenme": 1008,
+   "begeni": 20,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "impossible event"
+   "topic_type": "impossible event",
+   "gorsel_stil": ""
   },
   {
    "video_id": "FAdmlbKu08k",
@@ -37,11 +78,12 @@
    "yayin": "2026-10-24T18:22:45Z",
    "sure_sn": 32,
    "gizlilik": "public",
-   "izlenme": 672,
-   "begeni": 21,
+   "izlenme": 730,
+   "begeni": 26,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "maritime"
+   "topic_type": "maritime",
+   "gorsel_stil": ""
   },
   {
    "video_id": "z9tEzE_gnUk",
@@ -49,11 +91,12 @@
    "yayin": "2026-10-24T13:13:47Z",
    "sure_sn": 29,
    "gizlilik": "public",
-   "izlenme": 388,
-   "begeni": 9,
+   "izlenme": 395,
+   "begeni": 10,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold case file"
+   "topic_type": "cold case file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "-qg-UI2UMlA",
@@ -61,11 +104,12 @@
    "yayin": "2026-10-17T13:14:02Z",
    "sure_sn": 31,
    "gizlilik": "public",
-   "izlenme": 807,
+   "izlenme": 808,
    "begeni": 14,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold war file"
+   "topic_type": "cold war file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "zlR3FmwUMko",
@@ -77,7 +121,8 @@
    "begeni": 12,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "strange object"
+   "topic_type": "strange object",
+   "gorsel_stil": ""
   },
   {
    "video_id": "b4Bso8aRXvk",
@@ -89,7 +134,8 @@
    "begeni": 3,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "archaeology"
+   "topic_type": "archaeology",
+   "gorsel_stil": ""
   },
   {
    "video_id": "-5d1uey_NZ0",
@@ -101,7 +147,8 @@
    "begeni": 6,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold case file"
+   "topic_type": "cold case file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "NptmHAAv1H8",
@@ -113,7 +160,8 @@
    "begeni": 2,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "aviation"
+   "topic_type": "aviation",
+   "gorsel_stil": ""
   },
   {
    "video_id": "xHisfEdqVMM",
@@ -125,7 +173,8 @@
    "begeni": 2,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold war file"
+   "topic_type": "cold war file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "eVhNaNMEPYk",
@@ -137,7 +186,8 @@
    "begeni": 4,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "strange object"
+   "topic_type": "strange object",
+   "gorsel_stil": ""
   },
   {
    "video_id": "hTxdsxl7wxQ",
@@ -149,7 +199,8 @@
    "begeni": 15,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "archaeology"
+   "topic_type": "archaeology",
+   "gorsel_stil": ""
   },
   {
    "video_id": "dSGzRPsCUmg",
@@ -161,7 +212,8 @@
    "begeni": 14,
    "yorum": 1,
    "aile": "eski_format",
-   "topic_type": "true crime"
+   "topic_type": "true crime",
+   "gorsel_stil": ""
   },
   {
    "video_id": "gMssPW9DgFw",
@@ -173,7 +225,8 @@
    "begeni": 10,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "impossible event"
+   "topic_type": "impossible event",
+   "gorsel_stil": ""
   },
   {
    "video_id": "ujzUL4Kq_nQ",
@@ -185,7 +238,8 @@
    "begeni": 0,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold case file"
+   "topic_type": "cold case file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "xVv-k_Han0Y",
@@ -197,7 +251,8 @@
    "begeni": 1,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "maritime"
+   "topic_type": "maritime",
+   "gorsel_stil": ""
   },
   {
    "video_id": "0Rgb5VC4ilQ",
@@ -209,7 +264,8 @@
    "begeni": 16,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "archaeology"
+   "topic_type": "archaeology",
+   "gorsel_stil": ""
   },
   {
    "video_id": "tCYgwMLEa5E",
@@ -221,7 +277,8 @@
    "begeni": 0,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "true crime"
+   "topic_type": "true crime",
+   "gorsel_stil": ""
   },
   {
    "video_id": "CJICNaM9j5M",
@@ -233,7 +290,8 @@
    "begeni": 9,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "old documents"
+   "topic_type": "old documents",
+   "gorsel_stil": ""
   },
   {
    "video_id": "nHfFVW7VIQY",
@@ -245,7 +303,8 @@
    "begeni": 2,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold war file"
+   "topic_type": "cold war file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "mSs1AP_gts8",
@@ -257,7 +316,8 @@
    "begeni": 2,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "impossible event"
+   "topic_type": "impossible event",
+   "gorsel_stil": ""
   },
   {
    "video_id": "1kyzYg_h_x0",
@@ -269,7 +329,8 @@
    "begeni": 27,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "archaeology"
+   "topic_type": "archaeology",
+   "gorsel_stil": ""
   },
   {
    "video_id": "BgyRyjzOOqQ",
@@ -281,7 +342,8 @@
    "begeni": 2,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "true crime"
+   "topic_type": "true crime",
+   "gorsel_stil": ""
   },
   {
    "video_id": "RJVJ9Fsocmk",
@@ -293,7 +355,8 @@
    "begeni": 1,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "strange object"
+   "topic_type": "strange object",
+   "gorsel_stil": ""
   },
   {
    "video_id": "Y9NGv1UJdQE",
@@ -305,7 +368,8 @@
    "begeni": 2,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold case file"
+   "topic_type": "cold case file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "E9QOblrzyvg",
@@ -317,7 +381,8 @@
    "begeni": 1,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "lab finding"
+   "topic_type": "lab finding",
+   "gorsel_stil": ""
   },
   {
    "video_id": "n5I6ZNy0-60",
@@ -329,7 +394,8 @@
    "begeni": 11,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "archaeology"
+   "topic_type": "archaeology",
+   "gorsel_stil": ""
   },
   {
    "video_id": "K-6B4gNwRiU",
@@ -341,7 +407,8 @@
    "begeni": 27,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "impossible event"
+   "topic_type": "impossible event",
+   "gorsel_stil": ""
   },
   {
    "video_id": "0YNiT0zp9o8",
@@ -353,7 +420,8 @@
    "begeni": 15,
    "yorum": 2,
    "aile": "eski_format",
-   "topic_type": "strange object"
+   "topic_type": "strange object",
+   "gorsel_stil": ""
   },
   {
    "video_id": "GW2YzhjeK3M",
@@ -365,7 +433,8 @@
    "begeni": 14,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "maritime"
+   "topic_type": "maritime",
+   "gorsel_stil": ""
   },
   {
    "video_id": "EDSjTIMYOOI",
@@ -377,7 +446,8 @@
    "begeni": 18,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold case file"
+   "topic_type": "cold case file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "QpNq-wF9Fn8",
@@ -389,7 +459,8 @@
    "begeni": 9,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "archaeology"
+   "topic_type": "archaeology",
+   "gorsel_stil": ""
   },
   {
    "video_id": "d6-GY6yx80w",
@@ -401,7 +472,8 @@
    "begeni": 9,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "impossible event"
+   "topic_type": "impossible event",
+   "gorsel_stil": ""
   },
   {
    "video_id": "dXcGTa9BbN4",
@@ -413,7 +485,8 @@
    "begeni": 10,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "lab finding"
+   "topic_type": "lab finding",
+   "gorsel_stil": ""
   },
   {
    "video_id": "Wxcfl_gvYEk",
@@ -425,7 +498,8 @@
    "begeni": 5,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "aviation"
+   "topic_type": "aviation",
+   "gorsel_stil": ""
   },
   {
    "video_id": "saY9IsO1jAo",
@@ -437,7 +511,8 @@
    "begeni": 12,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "true crime"
+   "topic_type": "true crime",
+   "gorsel_stil": ""
   },
   {
    "video_id": "UWhmDKDji9M",
@@ -449,7 +524,8 @@
    "begeni": 2,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "archaeology"
+   "topic_type": "archaeology",
+   "gorsel_stil": ""
   },
   {
    "video_id": "-4yhSbok9hk",
@@ -461,7 +537,8 @@
    "begeni": 12,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cctv footage"
+   "topic_type": "cctv footage",
+   "gorsel_stil": ""
   },
   {
    "video_id": "dmCVRf5HBcE",
@@ -473,7 +550,8 @@
    "begeni": 4,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "impossible event"
+   "topic_type": "impossible event",
+   "gorsel_stil": ""
   },
   {
    "video_id": "cSxC06-Scsc",
@@ -485,7 +563,8 @@
    "begeni": 2,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold case file"
+   "topic_type": "cold case file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "jyuGQDVVa3k",
@@ -493,11 +572,12 @@
    "yayin": "2026-08-24T21:13:50Z",
    "sure_sn": 31,
    "gizlilik": "public",
-   "izlenme": 1069,
+   "izlenme": 1070,
    "begeni": 4,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "strange object"
+   "topic_type": "strange object",
+   "gorsel_stil": ""
   },
   {
    "video_id": "G8eB_KaJ31Q",
@@ -509,7 +589,8 @@
    "begeni": 9,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "lab finding"
+   "topic_type": "lab finding",
+   "gorsel_stil": ""
   },
   {
    "video_id": "GXC5QNtdhno",
@@ -521,7 +602,8 @@
    "begeni": 9,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "old documents"
+   "topic_type": "old documents",
+   "gorsel_stil": ""
   },
   {
    "video_id": "hw6Kj44Iyfg",
@@ -533,7 +615,8 @@
    "begeni": 5,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "impossible event"
+   "topic_type": "impossible event",
+   "gorsel_stil": ""
   },
   {
    "video_id": "KpsmIe4xOyk",
@@ -545,7 +628,8 @@
    "begeni": 5,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold case file"
+   "topic_type": "cold case file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "U80K_DtsRhY",
@@ -557,7 +641,8 @@
    "begeni": 0,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "strange object"
+   "topic_type": "strange object",
+   "gorsel_stil": ""
   },
   {
    "video_id": "ggV7VC-VP9U",
@@ -569,7 +654,8 @@
    "begeni": 1,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "true crime"
+   "topic_type": "true crime",
+   "gorsel_stil": ""
   },
   {
    "video_id": "H9_sobarl4c",
@@ -577,11 +663,12 @@
    "yayin": "2026-08-22T21:08:40Z",
    "sure_sn": 31,
    "gizlilik": "public",
-   "izlenme": 434,
+   "izlenme": 436,
    "begeni": 5,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "old documents"
+   "topic_type": "old documents",
+   "gorsel_stil": ""
   },
   {
    "video_id": "o0ruOVbP7CI",
@@ -593,7 +680,8 @@
    "begeni": 25,
    "yorum": 1,
    "aile": "eski_format",
-   "topic_type": "lab finding"
+   "topic_type": "lab finding",
+   "gorsel_stil": ""
   },
   {
    "video_id": "K58lxfj6K8k",
@@ -605,7 +693,8 @@
    "begeni": 8,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "impossible event"
+   "topic_type": "impossible event",
+   "gorsel_stil": ""
   },
   {
    "video_id": "tJ_YGZJXA0o",
@@ -617,7 +706,8 @@
    "begeni": 2,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold war file"
+   "topic_type": "cold war file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "ThOzzrUWHLQ",
@@ -629,7 +719,8 @@
    "begeni": 2,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "strange object"
+   "topic_type": "strange object",
+   "gorsel_stil": ""
   },
   {
    "video_id": "j4RIBLUUl3I",
@@ -641,7 +732,8 @@
    "begeni": 13,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "maritime"
+   "topic_type": "maritime",
+   "gorsel_stil": ""
   },
   {
    "video_id": "zo11CVO62wU",
@@ -653,7 +745,8 @@
    "begeni": 17,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "archaeology"
+   "topic_type": "archaeology",
+   "gorsel_stil": ""
   },
   {
    "video_id": "QFE--LKq9W4",
@@ -665,7 +758,8 @@
    "begeni": 3,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "true crime"
+   "topic_type": "true crime",
+   "gorsel_stil": ""
   },
   {
    "video_id": "gAdn_jJHz4g",
@@ -677,7 +771,8 @@
    "begeni": 2,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold war file"
+   "topic_type": "cold war file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "_NMq2x8Tav8",
@@ -689,7 +784,8 @@
    "begeni": 7,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cctv footage"
+   "topic_type": "cctv footage",
+   "gorsel_stil": ""
   },
   {
    "video_id": "yHxO4vA-HDI",
@@ -701,7 +797,8 @@
    "begeni": 14,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "strange experiment"
+   "topic_type": "strange experiment",
+   "gorsel_stil": ""
   },
   {
    "video_id": "EAT7_22nbk4",
@@ -713,7 +810,8 @@
    "begeni": 5,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "radio signal"
+   "topic_type": "radio signal",
+   "gorsel_stil": ""
   },
   {
    "video_id": "OTn4N_KZ-oY",
@@ -725,7 +823,8 @@
    "begeni": 7,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "archaeology"
+   "topic_type": "archaeology",
+   "gorsel_stil": ""
   },
   {
    "video_id": "HLQ3fdRAx6A",
@@ -737,7 +836,8 @@
    "begeni": 5,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "impossible event"
+   "topic_type": "impossible event",
+   "gorsel_stil": ""
   },
   {
    "video_id": "97GRSBeNLoA",
@@ -749,7 +849,8 @@
    "begeni": 1,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "true crime"
+   "topic_type": "true crime",
+   "gorsel_stil": ""
   },
   {
    "video_id": "zi9Ei_09SGI",
@@ -761,7 +862,8 @@
    "begeni": 10,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold case file"
+   "topic_type": "cold case file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "ExkAKbtgrgI",
@@ -773,7 +875,8 @@
    "begeni": 8,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "radio signal"
+   "topic_type": "radio signal",
+   "gorsel_stil": ""
   },
   {
    "video_id": "gvNp-EYQThA",
@@ -785,7 +888,8 @@
    "begeni": 11,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "lab finding"
+   "topic_type": "lab finding",
+   "gorsel_stil": ""
   },
   {
    "video_id": "5MGlOZd2kAM",
@@ -797,7 +901,8 @@
    "begeni": 9,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "strange object"
+   "topic_type": "strange object",
+   "gorsel_stil": ""
   },
   {
    "video_id": "aVxGjYir9aM",
@@ -809,7 +914,8 @@
    "begeni": 11,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "maritime"
+   "topic_type": "maritime",
+   "gorsel_stil": ""
   },
   {
    "video_id": "2prw67bEWVQ",
@@ -821,7 +927,8 @@
    "begeni": 9,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "old documents"
+   "topic_type": "old documents",
+   "gorsel_stil": ""
   },
   {
    "video_id": "Dvf34zEsFHE",
@@ -833,7 +940,8 @@
    "begeni": 5,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "true crime"
+   "topic_type": "true crime",
+   "gorsel_stil": ""
   },
   {
    "video_id": "GJmDFd_BrbM",
@@ -845,7 +953,8 @@
    "begeni": 1,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold case file"
+   "topic_type": "cold case file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "gJutn0DGKkk",
@@ -857,7 +966,8 @@
    "begeni": 3,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "impossible event"
+   "topic_type": "impossible event",
+   "gorsel_stil": ""
   },
   {
    "video_id": "x8-1RrHBQw4",
@@ -869,7 +979,8 @@
    "begeni": 2,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "lab finding"
+   "topic_type": "lab finding",
+   "gorsel_stil": ""
   },
   {
    "video_id": "pSAExOuSC_8",
@@ -881,7 +992,8 @@
    "begeni": 14,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "unexplained photo"
+   "topic_type": "unexplained photo",
+   "gorsel_stil": ""
   },
   {
    "video_id": "OB2janziS4g",
@@ -893,7 +1005,8 @@
    "begeni": 16,
    "yorum": 1,
    "aile": "eski_format",
-   "topic_type": "aviation"
+   "topic_type": "aviation",
+   "gorsel_stil": ""
   },
   {
    "video_id": "hDZ9TPFTPcs",
@@ -905,7 +1018,8 @@
    "begeni": 0,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "strange object"
+   "topic_type": "strange object",
+   "gorsel_stil": ""
   },
   {
    "video_id": "weAgy-wa-aQ",
@@ -917,7 +1031,8 @@
    "begeni": 4,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold case file"
+   "topic_type": "cold case file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "UYjatwKK-UY",
@@ -929,7 +1044,8 @@
    "begeni": 1,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "strange experiment"
+   "topic_type": "strange experiment",
+   "gorsel_stil": ""
   },
   {
    "video_id": "b6GUyDsjrVc",
@@ -941,7 +1057,8 @@
    "begeni": 5,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cctv footage"
+   "topic_type": "cctv footage",
+   "gorsel_stil": ""
   },
   {
    "video_id": "JvXggnEiwZ4",
@@ -953,7 +1070,8 @@
    "begeni": 10,
    "yorum": 1,
    "aile": "eski_format",
-   "topic_type": "archaeology"
+   "topic_type": "archaeology",
+   "gorsel_stil": ""
   },
   {
    "video_id": "LtfZAZDVmkk",
@@ -965,7 +1083,8 @@
    "begeni": 13,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "aviation"
+   "topic_type": "aviation",
+   "gorsel_stil": ""
   },
   {
    "video_id": "GwaLaFqWqB4",
@@ -977,7 +1096,8 @@
    "begeni": 6,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "unexplained photo"
+   "topic_type": "unexplained photo",
+   "gorsel_stil": ""
   },
   {
    "video_id": "4pNk4qdDHXw",
@@ -989,7 +1109,8 @@
    "begeni": 5,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold war file"
+   "topic_type": "cold war file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "r-iyCyYEmNQ",
@@ -1001,7 +1122,8 @@
    "begeni": 1,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold case file"
+   "topic_type": "cold case file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "qjX2qkBLGBY",
@@ -1013,7 +1135,8 @@
    "begeni": 3,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "lab finding"
+   "topic_type": "lab finding",
+   "gorsel_stil": ""
   },
   {
    "video_id": "Ajr31usCSVY",
@@ -1025,7 +1148,8 @@
    "begeni": 18,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "archaeology"
+   "topic_type": "archaeology",
+   "gorsel_stil": ""
   },
   {
    "video_id": "UhTcMjVnPWM",
@@ -1037,7 +1161,8 @@
    "begeni": 3,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "last phone recording"
+   "topic_type": "last phone recording",
+   "gorsel_stil": ""
   },
   {
    "video_id": "ZRqx1l_-cwc",
@@ -1049,7 +1174,8 @@
    "begeni": 6,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold war file"
+   "topic_type": "cold war file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "sYsEgxvUMA8",
@@ -1061,7 +1187,8 @@
    "begeni": 13,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "unexplained photo"
+   "topic_type": "unexplained photo",
+   "gorsel_stil": ""
   },
   {
    "video_id": "g2IUD8tms3E",
@@ -1073,7 +1200,8 @@
    "begeni": 3,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "old documents"
+   "topic_type": "old documents",
+   "gorsel_stil": ""
   },
   {
    "video_id": "gFNo9o61GsQ",
@@ -1081,11 +1209,12 @@
    "yayin": "2026-08-07T21:08:18Z",
    "sure_sn": 30,
    "gizlilik": "public",
-   "izlenme": 675,
+   "izlenme": 676,
    "begeni": 12,
    "yorum": 1,
    "aile": "eski_format",
-   "topic_type": "lab finding"
+   "topic_type": "lab finding",
+   "gorsel_stil": ""
   },
   {
    "video_id": "qdm3oBGiKaQ",
@@ -1097,7 +1226,8 @@
    "begeni": 1,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "radio signal"
+   "topic_type": "radio signal",
+   "gorsel_stil": ""
   },
   {
    "video_id": "zQV0bzgBW88",
@@ -1109,7 +1239,8 @@
    "begeni": 10,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold war file"
+   "topic_type": "cold war file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "O3buoS1UPGM",
@@ -1121,7 +1252,8 @@
    "begeni": 11,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "aviation"
+   "topic_type": "aviation",
+   "gorsel_stil": ""
   },
   {
    "video_id": "Zfe4TpaRUDo",
@@ -1133,7 +1265,8 @@
    "begeni": 4,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "unexplained photo"
+   "topic_type": "unexplained photo",
+   "gorsel_stil": ""
   },
   {
    "video_id": "cps0K195tUo",
@@ -1145,7 +1278,8 @@
    "begeni": 3,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "cold case file"
+   "topic_type": "cold case file",
+   "gorsel_stil": ""
   },
   {
    "video_id": "9DNj-1OZpq0",
@@ -1157,7 +1291,8 @@
    "begeni": 10,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": "lab finding"
+   "topic_type": "lab finding",
+   "gorsel_stil": ""
   },
   {
    "video_id": "mq1ZO0HKt-E",
@@ -1166,10 +1301,11 @@
    "sure_sn": 28,
    "gizlilik": "public",
    "izlenme": 679,
-   "begeni": 8,
+   "begeni": 7,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "UGu7HyciDNY",
@@ -1181,7 +1317,8 @@
    "begeni": 11,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "BRCwC_VNKPQ",
@@ -1193,7 +1330,8 @@
    "begeni": 13,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "ocDvmdMIpLI",
@@ -1201,11 +1339,12 @@
    "yayin": "2026-08-04T13:25:39Z",
    "sure_sn": 27,
    "gizlilik": "public",
-   "izlenme": 627,
+   "izlenme": 632,
    "begeni": 6,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "E5keRX7FYAE",
@@ -1217,7 +1356,8 @@
    "begeni": 7,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "S-oPVFbSSW4",
@@ -1229,7 +1369,8 @@
    "begeni": 7,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "RO9Xu8Vjy50",
@@ -1241,7 +1382,8 @@
    "begeni": 6,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "3vemOCDF6f0",
@@ -1253,7 +1395,8 @@
    "begeni": 7,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "k9Wi7vYv5fw",
@@ -1265,7 +1408,8 @@
    "begeni": 10,
    "yorum": 1,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "WABgVNhHHfo",
@@ -1277,7 +1421,8 @@
    "begeni": 18,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "O7hFuDPwhB8",
@@ -1289,7 +1434,8 @@
    "begeni": 8,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "2xZTT4Rl9mU",
@@ -1301,7 +1447,8 @@
    "begeni": 14,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "_WnAAwuIhGY",
@@ -1313,7 +1460,8 @@
    "begeni": 16,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "TRxxHMoibeg",
@@ -1325,7 +1473,8 @@
    "begeni": 7,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "ABlTE30Rw8I",
@@ -1337,7 +1486,8 @@
    "begeni": 22,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "5jq-T_pW4fU",
@@ -1349,7 +1499,8 @@
    "begeni": 6,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "H_sRSAKzYsE",
@@ -1361,7 +1512,8 @@
    "begeni": 14,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "F3gW47l9iWM",
@@ -1373,7 +1525,8 @@
    "begeni": 15,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "QFOy7_xRy68",
@@ -1385,7 +1538,8 @@
    "begeni": 33,
    "yorum": 2,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "HNLeJXbnWXU",
@@ -1397,7 +1551,8 @@
    "begeni": 18,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "AsKCDRm2AwE",
@@ -1409,7 +1564,8 @@
    "begeni": 14,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "82TlRcPI718",
@@ -1421,7 +1577,8 @@
    "begeni": 14,
    "yorum": 1,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "LtTdoXRwFpA",
@@ -1433,7 +1590,8 @@
    "begeni": 7,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "oKF5BJCjCAo",
@@ -1445,7 +1603,8 @@
    "begeni": 10,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "ZyLMzbQkwjg",
@@ -1457,7 +1616,8 @@
    "begeni": 3,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "iFBvzh8heQQ",
@@ -1469,7 +1629,8 @@
    "begeni": 3,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "CejQoU4E7tw",
@@ -1481,7 +1642,8 @@
    "begeni": 21,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "SdO4jdG1rZY",
@@ -1493,7 +1655,8 @@
    "begeni": 6,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "MhNEueNOxqk",
@@ -1505,7 +1668,8 @@
    "begeni": 4,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "g17Aeb72QoQ",
@@ -1517,7 +1681,8 @@
    "begeni": 26,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "pFCi5C0AXAU",
@@ -1525,11 +1690,12 @@
    "yayin": "2026-07-24T05:14:22Z",
    "sure_sn": 54,
    "gizlilik": "public",
-   "izlenme": 214,
+   "izlenme": 217,
    "begeni": 7,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "LXUhZwfz1kw",
@@ -1541,7 +1707,8 @@
    "begeni": 9,
    "yorum": 1,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "Bbg82s_WFlc",
@@ -1553,7 +1720,8 @@
    "begeni": 12,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "0Gf_SNhEgKA",
@@ -1565,7 +1733,8 @@
    "begeni": 26,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "uztMCKoZ-9o",
@@ -1577,7 +1746,8 @@
    "begeni": 23,
    "yorum": 2,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "PEmb3FHout4",
@@ -1589,7 +1759,8 @@
    "begeni": 25,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "6ULsoMu8kN4",
@@ -1601,7 +1772,8 @@
    "begeni": 18,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "v3r6Zd7JFmA",
@@ -1613,7 +1785,8 @@
    "begeni": 24,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "flYumqyED4c",
@@ -1625,7 +1798,8 @@
    "begeni": 31,
    "yorum": 1,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "YZNoVmwUaG4",
@@ -1637,7 +1811,8 @@
    "begeni": 11,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "eZb3CULFLQg",
@@ -1649,7 +1824,8 @@
    "begeni": 20,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "d9IWa1C-uHU",
@@ -1661,7 +1837,8 @@
    "begeni": 22,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "pe4QMw67nwk",
@@ -1673,7 +1850,8 @@
    "begeni": 2,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "lbC30tDA5IM",
@@ -1685,7 +1863,8 @@
    "begeni": 25,
    "yorum": 1,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "mMkZXTqQCeI",
@@ -1697,7 +1876,8 @@
    "begeni": 14,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "rKOaeWigpyo",
@@ -1709,7 +1889,8 @@
    "begeni": 19,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "hc1W4kNhSrk",
@@ -1721,7 +1902,8 @@
    "begeni": 9,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "w-Oz4ztV_Yw",
@@ -1733,7 +1915,8 @@
    "begeni": 22,
    "yorum": 1,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "BfD8E5Zodow",
@@ -1745,7 +1928,8 @@
    "begeni": 10,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   },
   {
    "video_id": "N79EKwbNhLk",
@@ -1757,7 +1941,8 @@
    "begeni": 14,
    "yorum": 0,
    "aile": "eski_format",
-   "topic_type": ""
+   "topic_type": "",
+   "gorsel_stil": ""
   }
  ],
  "analytics": {
