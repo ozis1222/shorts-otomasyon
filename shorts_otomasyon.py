@@ -1304,6 +1304,72 @@ def gemini_uret(performans, viraller):
 # =========================================================
 #  6) edge-tts ile seslendir + KELIME ZAMANLAMASI
 # =========================================================
+# Seslendirme motoru: Kokoro (acik kaynak, ucretsiz, dogal insan sesine yakin; CPU'da calisir).
+# Kokoro yuklu degilse / hata verirse edge-tts yedegine dusulur, video yine uretilir.
+TTS_MOTORU = (os.environ.get("TTS_MOTORU") or "kokoro").strip().lower()
+KOKORO_SES = os.environ.get("KOKORO_SES") or "am_michael"
+KOKORO_HIZ = float(os.environ.get("KOKORO_HIZ") or "0.95")
+_kokoro_hatti = None
+
+
+def kokoro_seslendir(text, out_path, ses=None, hiz=None):
+    """Kokoro-82M ile seslendirir; kelime zamanlarini (altyazi senkronu) dondurur.
+    Donus: [{'word', 'start', 'end'}] (saniye). Ses: 24 kHz -> out_path (mp3/wav)."""
+    global _kokoro_hatti
+    import subprocess
+    import numpy as np
+    import soundfile as sf
+    from kokoro import KPipeline
+    if _kokoro_hatti is None:
+        _kokoro_hatti = KPipeline(lang_code="a", repo_id="hexgrad/Kokoro-82M")
+    sr = 24000
+    parcalar, words, ofset = [], [], 0.0
+    for r in _kokoro_hatti(text, voice=ses or KOKORO_SES, speed=hiz or KOKORO_HIZ):
+        if r.audio is None:
+            continue
+        ses_dizi = r.audio.detach().cpu().numpy() if hasattr(r.audio, "detach") else np.asarray(r.audio)
+        for tok in (r.tokens or []):
+            if not re.search(r"[A-Za-z0-9]", tok.text or ""):
+                # noktalama ayri token gelir: onceki kelimeye eklenir (altyazi cumle sinirinda bolunsun)
+                if words and (tok.text or "").strip():
+                    words[-1]["word"] += tok.text.strip()
+                continue
+            if tok.start_ts is None or tok.end_ts is None:
+                continue
+            words.append({"word": tok.text, "start": round(ofset + tok.start_ts, 3), "end": round(ofset + tok.end_ts, 3)})
+        parcalar.append(ses_dizi)
+        ofset += len(ses_dizi) / sr
+    if not parcalar or not words:
+        raise RuntimeError("Kokoro ses/kelime zamani uretmedi")
+    wav = os.path.splitext(out_path)[0] + "_kokoro.wav"
+    sf.write(wav, np.concatenate(parcalar), sr)
+    if out_path.lower().endswith(".wav"):
+        os.replace(wav, out_path)
+    else:
+        subprocess.run([_ffmpeg_yolu(), "-y", "-i", wav, "-ar", "44100", "-ac", "2", "-b:a", "192k", out_path],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        os.remove(wav)
+    return words
+
+
+SON_SES_MOTORU = "edge-tts"
+
+
+def seslendir(text, out_path):
+    """Senaryoyu seslendirir. Donus: (kelime_zamanlari, motor_adi)."""
+    global SON_SES_MOTORU
+    if TTS_MOTORU == "kokoro":
+        try:
+            words = kokoro_seslendir(text, out_path)
+            SON_SES_MOTORU = "kokoro"
+            print(f"      Kokoro sesi: {KOKORO_SES} (hiz {KOKORO_HIZ})")
+            return words, f"kokoro:{KOKORO_SES}"
+        except Exception as e:
+            print("      (Kokoro kullanilamadi, edge-tts yedegine geciliyor:", str(e)[:140], ")")
+    SON_SES_MOTORU = "edge-tts"
+    return asyncio.run(seslendir_ve_zamanla(text, VOICE, out_path)), "edge-tts"
+
+
 async def seslendir_ve_zamanla(text, voice, out_path):
     import edge_tts
 
@@ -3492,7 +3558,8 @@ def yayin_paketi_hazirla(baslik, aciklama, etiketler, thumb, aile, konu, topic_t
         "baslik": baslik, "aciklama": aciklama, "etiketler": etiketler,
         "script": script, "sahne_tarifleri": sahneler,
         "kaynak": kaynak, "gorsel_motoru": motor,
-        "medya_kaynagi": medya_kaynagi + ["edge-tts", "sentetik-ses"],
+        "medya_kaynagi": medya_kaynagi + [SON_SES_MOTORU, "sentetik-ses"],
+        "ses_motoru": SON_SES_MOTORU + (f":{KOKORO_SES}" if SON_SES_MOTORU == "kokoro" else ""),
         "maliyet_usd": 0.0,   # tum servisler ucretsiz katmanda
         "uretim_notlari": notlar,
         "gorsel_stil": GORSEL_STIL if motor == "cloudflare-flux" else "",
@@ -3574,8 +3641,8 @@ def main():
         print("      Gorseller :", ", ".join(sorgular))
 
     # Seslendirme + kelime zamanlamasi
-    print("[3/6] Seslendiriliyor (edge-tts)...")
-    words = asyncio.run(seslendir_ve_zamanla(script, VOICE, AUDIO_FILE))
+    print(f"[3/6] Seslendiriliyor ({TTS_MOTORU})...")
+    words, ses_motoru = seslendir(script, AUDIO_FILE)
     print(f"      {len(words)} kelime seslendirildi -> {AUDIO_FILE}")
     if not words:
         raise RuntimeError("edge-tts kelime zamanlamasi dondurmedi. Senaryo bos olabilir.")

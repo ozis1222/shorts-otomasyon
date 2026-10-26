@@ -78,6 +78,25 @@
    "durum": "onay_bekliyor",
    "video_id": "",
    "github_run_id": "40237825251"
+  },
+  {
+   "paket_id": "20261026-051418-151aa2",
+   "olusturma": "2026-10-26T05:14:18.611156+00:00",
+   "aile": "gercek_vaka",
+   "konu": "The 1884 discovery of the ghost ship Resolven",
+   "topic_type": "maritime",
+   "baslik": "A STEAMING Dinner Was Found on an Empty Ship #Shorts",
+   "sure_sn": 46.91,
+   "gorsel_motoru": "cloudflare-flux",
+   "gorsel_stil": "B",
+   "maliyet_usd": 0.0,
+   "kalite_gecti": true,
+   "kalite_hatalari": [],
+   "uretim_notlari": [],
+   "kaynak_url": "https://en.wikipedia.org/wiki/Resolven_(ship)",
+   "durum": "onay_bekliyor",
+   "video_id": "",
+   "github_run_id": "40271979135"
   }
  ]
 }

@@ -153,7 +153,7 @@ def icerik_kontrol(meta):
              kaynak.get("url") or "dogrulanmis kaynak yok")
 
     medya = meta.get("medya_kaynagi") or []
-    izinli = {"cloudflare-flux", "kod-cizim", "pollinations", "sentetik-ses", "edge-tts", "pexels", "pixabay"}
+    izinli = {"cloudflare-flux", "kod-cizim", "pollinations", "sentetik-ses", "edge-tts", "kokoro", "pexels", "pixabay"}
     bilinmeyen = [m for m in medya if m not in izinli]
     ekle("medya lisansi", not bilinmeyen, "yalnizca lisansi bilinen kaynaklar" if not bilinmeyen
          else f"lisansi bilinmeyen kaynak: {bilinmeyen}")
