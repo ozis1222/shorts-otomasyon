@@ -121,6 +121,27 @@
    "github_run_id": "40279313198",
    "gizlilik": "public",
    "yayin_tarihi": "2026-10-26T06:32:28.008405+00:00"
+  },
+  {
+   "paket_id": "20261026-131542-6f152a",
+   "olusturma": "2026-10-26T13:15:42.529000+00:00",
+   "aile": "hayatta_kalma",
+   "konu": "Fictional Desert Highway Survival Thriller",
+   "topic_type": "strange object",
+   "baslik": "His Sedan Seat Was Adjusted for Someone NINE Feet Tall #Shorts",
+   "sure_sn": 60.63,
+   "gorsel_motoru": "cloudflare-flux",
+   "gorsel_stil": "B",
+   "maliyet_usd": 0.0,
+   "kalite_gecti": false,
+   "kalite_hatalari": [
+    "sure"
+   ],
+   "uretim_notlari": [],
+   "kaynak_url": "",
+   "durum": "kalite_reddi",
+   "video_id": "",
+   "github_run_id": "40326987155"
   }
  ]
 }
