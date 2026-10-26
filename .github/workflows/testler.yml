@@ -16,5 +16,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - run: pip install -r requirements.txt pytest
+      # Testler Kokoro'yu sahte modelle dener: agir torch/kokoro kurulmaz
+      - run: grep -vE '^(kokoro)$' requirements.txt > req-test.txt && pip install -r req-test.txt pytest
       - run: python -m pytest -q tests
