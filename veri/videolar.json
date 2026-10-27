@@ -161,6 +161,25 @@
    "durum": "onay_bekliyor",
    "video_id": "",
    "github_run_id": "40396157686"
+  },
+  {
+   "paket_id": "20261027-051155-684282",
+   "olusturma": "2026-10-27T05:11:55.734463+00:00",
+   "aile": "gercek_vaka",
+   "konu": "Disappearance of Percy Fawcett",
+   "topic_type": "archaeology",
+   "baslik": "100 Searchers DIED Looking for Percy Fawcett #Shorts",
+   "sure_sn": 54.08,
+   "gorsel_motoru": "cloudflare-flux",
+   "gorsel_stil": "B",
+   "maliyet_usd": 0.0,
+   "kalite_gecti": true,
+   "kalite_hatalari": [],
+   "uretim_notlari": [],
+   "kaynak_url": "https://en.wikipedia.org/wiki/Percy_Fawcett",
+   "durum": "onay_bekliyor",
+   "video_id": "",
+   "github_run_id": "40452873225"
   }
  ]
 }
