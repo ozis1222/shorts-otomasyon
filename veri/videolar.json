@@ -180,6 +180,25 @@
    "durum": "onay_bekliyor",
    "video_id": "",
    "github_run_id": "40452873225"
+  },
+  {
+   "paket_id": "20261027-131339-d905ff",
+   "olusturma": "2026-10-27T13:13:39.755594+00:00",
+   "aile": "gercek_vaka",
+   "konu": "Disappearance of Amy Lynn Bradley",
+   "topic_type": "cold case file",
+   "baslik": "Her Sandals Sat on the Balcony, But Cabin 8068 Was EMPTY #Shorts",
+   "sure_sn": 55.0,
+   "gorsel_motoru": "cloudflare-flux",
+   "gorsel_stil": "B",
+   "maliyet_usd": 0.0,
+   "kalite_gecti": true,
+   "kalite_hatalari": [],
+   "uretim_notlari": [],
+   "kaynak_url": "https://en.wikipedia.org/wiki/Disappearance_of_Amy_Lynn_Bradley",
+   "durum": "onay_bekliyor",
+   "video_id": "",
+   "github_run_id": "40508353393"
   }
  ]
 }
